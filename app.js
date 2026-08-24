@@ -794,9 +794,6 @@ class SpreadsheetApp {
               ${exchBadge}
             </div>
           </td>
-          <td style="color: var(--text-secondary); max-width: 170px; overflow: hidden; text-overflow: ellipsis;">
-            ${q.name || h.name || h.symbol}
-          </td>
           <td class="cell-right cell-editable">
             <input type="number" step="0.01" value="${h.buyPrice.toFixed(2)}" 
               onchange="window.sheetApp.updateHoldingCell('${h.id}', 'buyPrice', this.value)" 
@@ -810,10 +807,6 @@ class SpreadsheetApp {
           <td class="cell-right cell-mono">${this.formatCurrency(invested, holdingCurr)}</td>
           <td class="cell-right cell-mono ${flashClass}">
             <strong>${this.formatCurrency(q.price, holdingCurr)}</strong>
-          </td>
-          <td class="cell-right cell-mono">${this.formatCurrency(currVal, holdingCurr)}</td>
-          <td class="cell-right cell-mono ${isDayGain ? 'text-gain' : 'text-loss'}">
-            ${isDayGain ? '▲' : '▼'} ${Math.abs(q.changePct || 0).toFixed(2)}%
           </td>
           <td class="cell-right">
             <span class="badge-pnl ${isGain ? 'gain' : 'loss'}">
