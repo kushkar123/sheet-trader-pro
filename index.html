@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SheetTrader Pro | NSE, BSE & Global Paper Trading</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="brand-section">
+      <div class="brand-logo">📊</div>
+      <div class="brand-title">
+        <h1>SheetTrader Pro <span class="badge">NSE / BSE / Global</span></h1>
+        <p>Live spreadsheet portfolio portal powered by yfinance</p>
+      </div>
+    </div>
+
+    <div class="header-controls">
+      <div id="marketStatusBadge" class="market-status-badge">
+        <span class="status-dot"></span>
+        <span id="marketStatusText">Live Feed Active</span>
+      </div>
+
+      <!-- Currency Switcher Toggle -->
+      <button id="btnToggleCurrency" class="currency-pill-btn" title="Toggle portfolio display currency (INR / USD)">
+        <span>💱 Currency:</span>
+        <strong id="currencyDisplayLabel" style="color: var(--accent-blue);">₹ INR</strong>
+      </button>
+
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <label for="refreshInterval" style="font-size: 0.75rem; color: var(--text-secondary);">Auto-Sync:</label>
+        <select id="refreshInterval" class="form-control" style="padding: 4px 8px; font-size: 0.78rem;">
+          <option value="15000">15s</option>
+          <option value="30000" selected>30s</option>
+          <option value="60000">1m</option>
+          <option value="0">Manual</option>
+        </select>
+      </div>
+
+      <button id="btnRefreshQuotes" class="btn btn-secondary btn-sm" title="Refresh all market quotes immediately">
+        🔄 Refresh
+      </button>
+
+      <button id="btnOpenBuyModal" class="btn btn-primary btn-sm">
+        ➕ New Position
+      </button>
+    </div>
+  </header>
+
+  <!-- KPI Overview Ribbon -->
+  <section class="kpi-ribbon">
+    <div class="kpi-card">
+      <div class="kpi-label">Portfolio Net Worth</div>
+      <div id="kpiNetWorth" class="kpi-value">₹10,00,00,000.00</div>
+      <div id="kpiNetWorthSub" class="kpi-subtext text-gain">+₹0.00 (0.00%) all-time</div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-label">Total Invested</div>
+      <div id="kpiInvested" class="kpi-value">₹0.00</div>
+      <div id="kpiHoldingsCount" class="kpi-subtext" style="color: var(--text-secondary);">0 open positions</div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-label">Unrealized P&amp;L</div>
+      <div id="kpiUnrealizedPnl" class="kpi-value">₹0.00</div>
+      <div id="kpiUnrealizedPct" class="kpi-subtext text-gain">0.00% return</div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-label">Realized Closed P&amp;L</div>
+      <div id="kpiRealizedPnl" class="kpi-value">₹0.00</div>
+      <div id="kpiWinRate" class="kpi-subtext" style="color: var(--text-secondary);">0 closed trades</div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-label">Available Cash</div>
+      <div id="kpiCashBalance" class="kpi-value">₹10,00,00,000.00</div>
+      <div class="kpi-subtext" style="color: var(--text-secondary);">Buying Power (₹10 Cr)</div>
+    </div>
+  </section>
+
+  <!-- Formula Bar (Excel / Google Sheets Style) -->
+  <div class="formula-bar-container">
+    <div class="formula-bar">
+      <span class="formula-fx">fx</span>
+      <div class="formula-search-box">
+        <select id="formulaExchangeSelect" title="Select exchange filter">
+          <option value="AUTO">Auto (Smart)</option>
+          <option value="NSE" selected>NSE (India .NS)</option>
+          <option value="BSE">BSE (India .BO)</option>
+          <option value="US">US / Global</option>
+        </select>
+        <input type="text" id="formulaInput" placeholder="Enter ticker symbol (e.g. RELIANCE, TCS, INFY, ITC.BO, NVDA) & press Enter to buy..." />
+      </div>
+      <button id="btnQuickSearch" class="btn btn-secondary btn-sm">Lookup / Buy</button>
+    </div>
+  </div>
+
+  <!-- Multi-Tab Workbook Navigation -->
+  <nav class="sheet-tabs-container">
+    <div class="sheet-tabs">
+      <button class="sheet-tab active" data-tab="active-holdings">
+        <span>📑 Active Portfolio</span>
+        <span id="tabBadgeHoldings" class="badge-count">0</span>
+      </button>
+      <button class="sheet-tab" data-tab="watchlist">
+        <span>⭐ Watchlist</span>
+        <span id="tabBadgeWatchlist" class="badge-count">0</span>
+      </button>
+      <button class="sheet-tab" data-tab="trade-history">
+        <span>📜 Past Trade History</span>
+        <span id="tabBadgeHistory" class="badge-count">0</span>
+      </button>
+    </div>
+
+    <div class="tab-actions">
+      <button id="btnExportCSV" class="btn btn-secondary btn-sm" title="Export portfolio to CSV">
+        📥 Export CSV
+      </button>
+      <button id="btnClearAll" class="btn btn-secondary btn-sm" title="Reset portfolio to ₹10 Crore clean slate">
+        🧹 Clear All
+      </button>
+      <button id="btnResetDemo" class="btn btn-secondary btn-sm" title="Load sample paper portfolio">
+        ⚡ Demo Data
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Viewport -->
+  <main class="main-viewport">
+
+    <!-- Tab 1: Active Holdings Sheet -->
+    <div id="tab-active-holdings" class="sheet-panel active">
+      <div class="table-responsive">
+        <table class="spreadsheet-table" id="holdingsTable">
+          <thead>
+            <tr>
+              <th style="width: 38px;" class="cell-center">⭐</th>
+              <th style="width: 120px;">Symbol</th>
+              <th>Company Name</th>
+              <th class="cell-right" style="width: 110px;">Buy Price</th>
+              <th class="cell-right" style="width: 90px;">Shares (Qty)</th>
+              <th class="cell-right" style="width: 125px;">Total Invested</th>
+              <th class="cell-right" style="width: 125px;">Current Price</th>
+              <th class="cell-right" style="width: 125px;">Current Value</th>
+              <th class="cell-right" style="width: 100px;">Day Chg %</th>
+              <th class="cell-right" style="width: 140px;">Unrealized P&amp;L</th>
+              <th class="cell-right" style="width: 95px;">Return %</th>
+              <th class="cell-center" style="width: 150px;">Past 30D Trend</th>
+              <th class="cell-center" style="width: 140px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="holdingsTableBody">
+            <!-- Populated via JavaScript -->
+          </tbody>
+        </table>
+      </div>
+      <div id="holdingsEmptyState" class="empty-state">
+        <div class="empty-state-icon">💼</div>
+        <h3>Portfolio is Ready (₹10 Crore Buying Power)</h3>
+        <p>No active positions entered yet. Click <strong>New Position</strong> or use the Formula Bar to enter your first stock.</p>
+        <button class="btn btn-primary" onclick="window.sheetApp.openBuyModal()">➕ Add New Position</button>
+      </div>
+    </div>
+
+    <!-- Tab 2: Watchlist Sheet -->
+    <div id="tab-watchlist" class="sheet-panel">
+      <div class="table-responsive">
+        <table class="spreadsheet-table" id="watchlistTable">
+          <thead>
+            <tr>
+              <th style="width: 40px;" class="cell-center">⭐</th>
+              <th style="width: 120px;">Symbol</th>
+              <th>Company Name</th>
+              <th class="cell-right" style="width: 120px;">Current Price</th>
+              <th class="cell-right" style="width: 110px;">Day Change %</th>
+              <th class="cell-right" style="width: 140px;">Target Buy Price</th>
+              <th class="cell-right" style="width: 130px;">Distance to Target</th>
+              <th class="cell-center" style="width: 160px;">52-Week Range</th>
+              <th class="cell-center" style="width: 150px;">Past 30D Trend</th>
+              <th class="cell-center" style="width: 140px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="watchlistTableBody">
+            <!-- Populated via JavaScript -->
+          </tbody>
+        </table>
+      </div>
+      <div id="watchlistEmptyState" class="empty-state">
+        <div class="empty-state-icon">⭐</div>
+        <h3>No Stocks on Watchlist</h3>
+        <p>Click the star icon (⭐) next to any holding or add ticker symbols from NSE/BSE you want to monitor.</p>
+        <button class="btn btn-primary" onclick="window.sheetApp.promptAddWatchlist()">➕ Add to Watchlist</button>
+      </div>
+    </div>
+
+    <!-- Tab 3: Past Trade History Sheet -->
+    <div id="tab-trade-history" class="sheet-panel">
+      <div class="table-responsive">
+        <table class="spreadsheet-table" id="historyTable">
+          <thead>
+            <tr>
+              <th style="width: 120px;">Symbol</th>
+              <th>Action</th>
+              <th class="cell-right" style="width: 90px;">Shares Sold</th>
+              <th class="cell-right" style="width: 110px;">Buy Price</th>
+              <th class="cell-right" style="width: 110px;">Sell Price</th>
+              <th class="cell-right" style="width: 125px;">Cost Basis</th>
+              <th class="cell-right" style="width: 125px;">Gross Proceeds</th>
+              <th class="cell-right" style="width: 130px;">Realized P&amp;L</th>
+              <th class="cell-right" style="width: 95px;">ROI %</th>
+              <th style="width: 130px;">Buy Date</th>
+              <th style="width: 130px;">Sell Date</th>
+              <th class="cell-right" style="width: 90px;">Holding (Days)</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody">
+            <!-- Populated via JavaScript -->
+          </tbody>
+        </table>
+      </div>
+      <div id="historyEmptyState" class="empty-state">
+        <div class="empty-state-icon">📜</div>
+        <h3>No Past Trade History</h3>
+        <p>When you close or sell any position from your Active Portfolio, the realized P&amp;L and transaction details will be logged here.</p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Modal: Add / Buy Position -->
+  <div id="buyModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>➕ Add / Buy Stock Position</h3>
+        <button class="modal-close" onclick="window.sheetApp.closeModals()">&times;</button>
+      </div>
+      <form id="buyForm" onsubmit="window.sheetApp.handleBuySubmit(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="buyExchange">Market / Exchange</label>
+            <select id="buyExchange" class="form-control">
+              <option value="AUTO">Auto-Detect (Smart)</option>
+              <option value="NSE" selected>NSE (India - National Stock Exchange .NS)</option>
+              <option value="BSE">BSE (India - Bombay Stock Exchange .BO)</option>
+              <option value="US">US / Global (NASDAQ, NYSE)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="buySymbol">Ticker Symbol</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="buySymbol" class="form-control" placeholder="e.g. RELIANCE, TCS, INFY, ITC, NVDA" style="text-transform: uppercase;" required />
+              <button type="button" id="btnFetchBuyQuote" class="btn btn-secondary btn-sm" onclick="window.sheetApp.fetchQuoteForBuyModal()">Fetch Live</button>
+            </div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">
+              Tip: You can enter <code>RELIANCE</code>, <code>TCS.NS</code>, <code>ITC.BO</code>, or <code>NVDA</code>.
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label for="buyPrice">Buy Price (<span id="modalBuyPriceCurrency">₹</span> / share)</label>
+              <input type="number" step="0.01" min="0.01" id="buyPrice" class="form-control" placeholder="0.00" required />
+            </div>
+
+            <div class="form-group">
+              <label for="buyQty">Shares (Quantity)</label>
+              <input type="number" step="0.01" min="0.01" id="buyQty" class="form-control" placeholder="100" required />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="buyDate">Transaction Date</label>
+            <input type="date" id="buyDate" class="form-control" />
+          </div>
+
+          <div class="modal-preview-box">
+            <div class="modal-preview-row">
+              <span style="color: var(--text-secondary);">Total Investment Cost:</span>
+              <span id="modalTotalInvested" style="font-weight: 700;">₹0.00</span>
+            </div>
+            <div class="modal-preview-row">
+              <span style="color: var(--text-secondary);">Available Buying Power:</span>
+              <span id="modalCashRemaining">₹10,00,00,000.00</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="window.sheetApp.closeModals()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Confirm Paper Buy</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Sell / Close Position -->
+  <div id="sellModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>💰 Sell / Close Position</h3>
+        <button class="modal-close" onclick="window.sheetApp.closeModals()">&times;</button>
+      </div>
+      <form id="sellForm" onsubmit="window.sheetApp.handleSellSubmit(event)">
+        <input type="hidden" id="sellHoldingId" />
+        <div class="modal-body">
+          <div class="modal-preview-box">
+            <div class="modal-preview-row">
+              <span style="color: var(--text-secondary);">Symbol:</span>
+              <span id="sellModalSymbol" style="font-weight: 700;">-</span>
+            </div>
+            <div class="modal-preview-row">
+              <span style="color: var(--text-secondary);">Owned Shares:</span>
+              <span id="sellModalOwnedQty">-</span>
+            </div>
+            <div class="modal-preview-row">
+              <span style="color: var(--text-secondary);">Original Buy Price:</span>
+              <span id="sellModalBuyPrice">-</span>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label for="sellPrice">Sell Price (<span id="modalSellPriceCurrency">₹</span> / share)</label>
+              <input type="number" step="0.01" min="0.01" id="sellPrice" class="form-control" required />
+            </div>
+
+            <div class="form-group">
+              <label for="sellQty">Shares to Sell</label>
+              <input type="number" step="0.01" min="0.01" id="sellQty" class="form-control" required />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="sellDate">Sell Date</label>
+            <input type="date" id="sellDate" class="form-control" />
+          </div>
+
+          <div class="modal-preview-box">
+            <div class="modal-preview-row">
+              <span style="color: var(--text-secondary);">Gross Proceeds:</span>
+              <span id="sellModalProceeds">₹0.00</span>
+            </div>
+            <div class="modal-preview-row">
+              <span style="color: var(--text-secondary);">Estimated Realized P&amp;L:</span>
+              <span id="sellModalEstPnl" style="font-weight: 700;">₹0.00</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="window.sheetApp.closeModals()">Cancel</button>
+          <button type="submit" class="btn btn-success">Execute Sell Order</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Reusable Warning & Confirmation Modal -->
+  <div id="confirmModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 440px;">
+      <div class="modal-header" style="border-bottom-color: rgba(245, 158, 11, 0.25);">
+        <h3 id="confirmModalTitle" style="color: var(--warning-amber);">⚠️ Warning Confirmation</h3>
+        <button class="modal-close" onclick="window.sheetApp.closeModals()">&times;</button>
+      </div>
+      <div class="modal-body" style="gap: 12px;">
+        <div id="confirmModalIcon" style="font-size: 2.2rem; text-align: center; margin: 4px 0;">⚠️</div>
+        <p id="confirmModalMessage" style="font-size: 0.9rem; line-height: 1.5; color: var(--text-primary); text-align: center;">
+          Are you sure you want to proceed?
+        </p>
+        <div id="confirmModalSubtext" style="font-size: 0.78rem; color: var(--text-secondary); text-align: center; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 6px; padding: 8px;">
+          This action will reset your active data.
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content: space-between;">
+        <button type="button" class="btn btn-secondary" onclick="window.sheetApp.closeModals()">Cancel</button>
+        <button type="button" id="btnConfirmModalAction" class="btn btn-danger">Confirm Action</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Application Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
