@@ -713,10 +713,13 @@ class SpreadsheetApp {
     const winRate = this.tradeHistory.length > 0 ? ((winCount / this.tradeHistory.length) * 100).toFixed(0) : 0;
 
     // Update DOM
-    document.getElementById('kpiNetWorth').textContent = this.formatCurrency(netWorth, this.displayCurrency);
+    const netEl = document.getElementById('kpiNetWorth');
+    if (netEl) netEl.textContent = this.formatCurrency(netWorth, this.displayCurrency);
     const netSub = document.getElementById('kpiNetWorthSub');
-    netSub.textContent = `${allTimePnl >= 0 ? '+' : ''}${this.formatCurrency(allTimePnl, this.displayCurrency)} (${allTimePct.toFixed(2)}%) all-time`;
-    netSub.className = `kpi-subtext ${allTimePnl >= 0 ? 'text-gain' : 'text-loss'}`;
+    if (netSub) {
+      netSub.textContent = `${allTimePnl >= 0 ? '+' : ''}${this.formatCurrency(allTimePnl, this.displayCurrency)} (${allTimePct.toFixed(2)}%) all-time`;
+      netSub.className = `kpi-subtext ${allTimePnl >= 0 ? 'text-gain' : 'text-loss'}`;
+    }
 
     document.getElementById('kpiInvested').textContent = this.formatCurrency(totalInvestedInDisplayCurr, this.displayCurrency);
     document.getElementById('kpiHoldingsCount').textContent = `${this.holdings.length} open position${this.holdings.length === 1 ? '' : 's'}`;

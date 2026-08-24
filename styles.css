@@ -204,9 +204,9 @@ body {
 /* KPI Overview Ribbon */
 .kpi-ribbon {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 14px;
-  padding: 16px 24px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  padding: 14px 24px;
   background: var(--bg-primary);
 }
 
@@ -214,8 +214,11 @@ body {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 10px;
-  padding: 14px 18px;
+  padding: 12px 16px;
   transition: transform 0.15s ease, border-color 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .kpi-card:hover {
@@ -223,13 +226,35 @@ body {
   transform: translateY(-1px);
 }
 
+/* 50% Smaller Compact Card */
+.kpi-card-compact {
+  padding: 8px 12px;
+  background: rgba(17, 24, 39, 0.7);
+  border-style: dashed;
+}
+
+.kpi-card-compact .kpi-label {
+  font-size: 0.68rem;
+  margin-bottom: 2px;
+}
+
+.kpi-card-compact .kpi-value {
+  font-size: 0.98rem;
+  font-weight: 700;
+}
+
+.kpi-card-compact .kpi-subtext {
+  font-size: 0.68rem;
+  margin-top: 2px;
+}
+
 .kpi-label {
-  font-size: 0.75rem;
+  font-size: 0.73rem;
   font-weight: 600;
   text-transform: uppercase;
   color: var(--text-secondary);
   letter-spacing: 0.05em;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -237,15 +262,15 @@ body {
 
 .kpi-value {
   font-family: var(--font-mono);
-  font-size: 1.45rem;
+  font-size: 1.35rem;
   font-weight: 700;
   color: var(--text-primary);
 }
 
 .kpi-subtext {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-family: var(--font-mono);
-  margin-top: 4px;
+  margin-top: 3px;
   display: flex;
   align-items: center;
   gap: 4px;

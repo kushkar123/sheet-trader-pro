@@ -56,12 +56,6 @@
   <!-- KPI Overview Ribbon -->
   <section class="kpi-ribbon">
     <div class="kpi-card">
-      <div class="kpi-label">Portfolio Net Worth</div>
-      <div id="kpiNetWorth" class="kpi-value">₹10,00,00,000.00</div>
-      <div id="kpiNetWorthSub" class="kpi-subtext text-gain">+₹0.00 (0.00%) all-time</div>
-    </div>
-
-    <div class="kpi-card">
       <div class="kpi-label">Total Invested</div>
       <div id="kpiInvested" class="kpi-value">₹0.00</div>
       <div id="kpiHoldingsCount" class="kpi-subtext" style="color: var(--text-secondary);">0 open positions</div>
@@ -79,10 +73,11 @@
       <div id="kpiWinRate" class="kpi-subtext" style="color: var(--text-secondary);">0 closed trades</div>
     </div>
 
-    <div class="kpi-card">
-      <div class="kpi-label">Available Cash</div>
+    <!-- 50% Smaller Compact Available Cash Card -->
+    <div class="kpi-card kpi-card-compact">
+      <div class="kpi-label" style="color: var(--accent-blue);">Buying Power</div>
       <div id="kpiCashBalance" class="kpi-value">₹10,00,00,000.00</div>
-      <div class="kpi-subtext" style="color: var(--text-secondary);">Buying Power (₹10 Cr)</div>
+      <div class="kpi-subtext" style="color: var(--text-muted);">Available Cash</div>
     </div>
   </section>
 
