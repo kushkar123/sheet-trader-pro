@@ -1,19 +1,18 @@
 /**
  * SheetTrader Pro - Interactive Spreadsheet Engine & Multi-Exchange Client
  * Supports NSE (.NS), BSE (.BO), and US/Global Markets
- * Default Buying Power: ₹10,00,00,000 (10 Crore INR)
- * Includes in-app Warning Confirmation Steps before critical actions
+ * Features: Automatic Cloud Sync across PC & Mobile Devices
  */
 
 class SpreadsheetApp {
   constructor() {
     this.storageKey = 'sheet_trader_portfolio_v3';
-    this.displayCurrency = 'INR'; // 'INR' (₹) or 'USD' ($)
-    this.usdInrRate = 86.50; // default exchange rate, updated via /api/fx
+    this.displayCurrency = 'INR';
+    this.usdInrRate = 86.50;
     this.defaultCashINR = 100000000.00; // ₹10,00,00,000 (10 Crore)
-    this.defaultCashUSD = 1200000.00;   // ~$1.2 Million USD equivalent
+    this.defaultCashUSD = 1200000.00;
     
-    // Clean Default State
+    // State
     this.cashBalance = this.defaultCashINR;
     this.holdings = [];
     this.watchlist = [];
@@ -27,18 +26,18 @@ class SpreadsheetApp {
     this.init();
   }
 
-  init() {
-    this.loadState();
+  async init() {
+    this.loadLocalState();
     this.bindEvents();
     this.renderTabs();
-    this.checkBackendAndSync();
+    await this.checkBackendAndSync();
     this.startAutoRefresh();
   }
 
   // ----------------------------------------------------
-  // State Persistence & Clean Slate Initialization
+  // State Persistence & Cloud Synchronization
   // ----------------------------------------------------
-  loadState() {
+  loadLocalState() {
     const saved = localStorage.getItem(this.storageKey);
     if (saved) {
       try {
@@ -56,6 +55,34 @@ class SpreadsheetApp {
       this.loadCleanState();
     }
     this.updateCurrencyUI();
+    this.renderAll();
+  }
+
+  async syncWithServer() {
+    if (!this.backendAvailable) return;
+    try {
+      const res = await fetch('/api/portfolio');
+      if (res.ok) {
+        const serverData = await res.json();
+        if (serverData && (serverData.holdings?.length > 0 || serverData.watchlist?.length > 0 || serverData.tradeHistory?.length > 0 || serverData.cashBalance !== undefined)) {
+          this.displayCurrency = serverData.displayCurrency || this.displayCurrency;
+          this.cashBalance = serverData.cashBalance ?? this.cashBalance;
+          this.holdings = serverData.holdings || [];
+          this.watchlist = serverData.watchlist || [];
+          this.tradeHistory = serverData.tradeHistory || [];
+          
+          localStorage.setItem(this.storageKey, JSON.stringify(serverData));
+          this.updateCurrencyUI();
+          this.renderAll();
+          console.log('[Sync] Synced latest portfolio state from server');
+        } else if (this.holdings.length > 0) {
+          // If server is empty but client has data, upload client data to server
+          this.pushStateToServer();
+        }
+      }
+    } catch (e) {
+      console.warn('[Sync] Could not fetch server portfolio:', e);
+    }
   }
 
   saveState() {
@@ -69,6 +96,29 @@ class SpreadsheetApp {
     };
     localStorage.setItem(this.storageKey, JSON.stringify(data));
     this.renderAll();
+    this.pushStateToServer(data);
+  }
+
+  async pushStateToServer(data = null) {
+    if (!this.backendAvailable) return;
+    const payload = data || {
+      displayCurrency: this.displayCurrency,
+      cashBalance: this.cashBalance,
+      holdings: this.holdings,
+      watchlist: this.watchlist,
+      tradeHistory: this.tradeHistory,
+      updatedAt: new Date().toISOString()
+    };
+
+    try {
+      await fetch('/api/portfolio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } catch (e) {
+      console.warn('[Sync] Failed to push state to server:', e);
+    }
   }
 
   loadCleanState() {
@@ -82,9 +132,8 @@ class SpreadsheetApp {
 
   loadDemoData() {
     this.displayCurrency = 'INR';
-    this.cashBalance = 85000000.00; // ₹8.5 Crore cash remaining
+    this.cashBalance = 85000000.00;
     
-    // Sample initial holdings across NSE, BSE, and US
     this.holdings = [
       {
         id: 'h_1',
@@ -148,14 +197,12 @@ class SpreadsheetApp {
       }
     ];
 
-    // Sample watchlist (NSE, BSE, US)
     this.watchlist = [
       { id: 'w_1', symbol: 'INFY.NS', name: 'Infosys Limited', currency: 'INR', exchange: 'NSE', targetPrice: 1100.00, isWatched: true },
       { id: 'w_2', symbol: 'SBIN.BO', name: 'State Bank of India (BSE)', currency: 'INR', exchange: 'BSE', targetPrice: 980.00, isWatched: true },
       { id: 'w_3', symbol: 'AAPL', name: 'Apple Inc.', currency: 'USD', exchange: 'NASDAQ', targetPrice: 215.00, isWatched: true }
     ];
 
-    // Sample trade history
     this.tradeHistory = [
       {
         id: 'th_1',
@@ -239,17 +286,14 @@ class SpreadsheetApp {
   // Event Listeners & UI Binding
   // ----------------------------------------------------
   bindEvents() {
-    // Confirmation modal action button
     document.getElementById('btnConfirmModalAction').addEventListener('click', () => {
       this.executePendingConfirm();
     });
 
-    // Currency Toggle
     document.getElementById('btnToggleCurrency').addEventListener('click', () => {
       this.toggleCurrency();
     });
 
-    // Tab switching
     document.querySelectorAll('.sheet-tab').forEach(tabBtn => {
       tabBtn.addEventListener('click', (e) => {
         const targetTab = tabBtn.getAttribute('data-tab');
@@ -257,7 +301,6 @@ class SpreadsheetApp {
       });
     });
 
-    // Refresh & sync controls
     document.getElementById('btnRefreshQuotes').addEventListener('click', () => {
       this.syncQuotes(true);
     });
@@ -266,7 +309,6 @@ class SpreadsheetApp {
       this.startAutoRefresh(parseInt(e.target.value, 10));
     });
 
-    // Header & Toolbar buttons with Warning Steps
     document.getElementById('btnOpenBuyModal').addEventListener('click', () => {
       this.openBuyModal();
     });
@@ -302,7 +344,6 @@ class SpreadsheetApp {
       this.exportCSV();
     });
 
-    // Formula bar lookup
     document.getElementById('formulaInput').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         const val = e.target.value.trim().toUpperCase();
@@ -326,7 +367,6 @@ class SpreadsheetApp {
       }
     });
 
-    // Exchange selection change in modal
     document.getElementById('buyExchange').addEventListener('change', (e) => {
       const symInput = document.getElementById('buySymbol');
       const val = symInput.value.trim().toUpperCase();
@@ -336,7 +376,6 @@ class SpreadsheetApp {
       }
     });
 
-    // Buy modal calculation listeners
     const buyPriceInput = document.getElementById('buyPrice');
     const buyQtyInput = document.getElementById('buyQty');
     const updateBuyModalPreview = () => {
@@ -357,7 +396,6 @@ class SpreadsheetApp {
     buyPriceInput.addEventListener('input', updateBuyModalPreview);
     buyQtyInput.addEventListener('input', updateBuyModalPreview);
 
-    // Sell modal preview calculation
     const sellPriceInput = document.getElementById('sellPrice');
     const sellQtyInput = document.getElementById('sellQty');
     const updateSellModalPreview = () => {
@@ -390,7 +428,6 @@ class SpreadsheetApp {
     if (exchangeChoice === 'BSE') return `${clean}.BO`;
     if (exchangeChoice === 'US') return clean;
 
-    // AUTO logic: Known popular Indian tickers
     const indianTickers = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'ICICIBANK', 'SBIN', 'ITC', 'TATAMOTORS', 'BHARTIARTL', 'WIPRO', 'LT', 'HINDUNILVR', 'KOTAKBANK', 'MARUTI', 'BAJFINANCE', 'AXISBANK', 'ZOMATO', 'PAYTM', 'JIOFIN'];
     if (indianTickers.includes(clean)) {
       return `${clean}.NS`;
@@ -453,6 +490,8 @@ class SpreadsheetApp {
           const fxData = await fxRes.json();
           if (fxData.USDINR) this.usdInrRate = fxData.USDINR;
         }
+        // Sync portfolio data from server
+        await this.syncWithServer();
       } else {
         this.backendAvailable = false;
         this.updateMarketStatusBadge(true, 'Local Simulator Active');

@@ -1,8 +1,7 @@
 """
 SheetTrader Pro - yfinance Backend & Static File Server
 Supports NSE (.NS), BSE (.BO), and US/Global stocks with smart exchange resolution,
-currency detection (INR / USD), and 30-day sparkline history.
-Configured for production cloud deployment on Render.
+currency detection (INR / USD), 30-day sparkline history, and Server-Side Multi-Device Sync.
 """
 
 import sys
@@ -16,9 +15,9 @@ import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Dynamic PORT for Render / Cloud hosting (defaults to 8000 locally)
 PORT = int(os.environ.get('PORT', 8000))
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+PORTFOLIO_FILE = os.path.join(DIRECTORY, 'portfolio_db.json')
 
 # In-memory caches to protect against Yahoo Finance rate limiting
 QUOTE_CACHE = {}
@@ -38,6 +37,12 @@ class SheetTraderHandler(SimpleHTTPRequestHandler):
 
         if path == '/api/health':
             self.send_json_response({"status": "ok", "service": "SheetTrader NSE/BSE/Global yfinance backend"})
+            return
+
+        elif path == '/api/portfolio':
+            # Multi-device synchronization endpoint
+            portfolio_data = self.load_portfolio()
+            self.send_json_response(portfolio_data)
             return
 
         elif path == '/api/quotes':
@@ -63,15 +68,59 @@ class SheetTraderHandler(SimpleHTTPRequestHandler):
         # Fallback to static file server (index.html, styles.css, app.js)
         return super().do_GET()
 
+    def do_POST(self):
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+
+        if path == '/api/portfolio':
+            # Save portfolio state from any client (PC, mobile, etc.)
+            try:
+                content_length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(content_length).decode('utf-8')
+                data = json.loads(body)
+                self.save_portfolio(data)
+                self.send_json_response({"status": "success", "message": "Portfolio synced to server"})
+            except Exception as e:
+                print(f"[Error] Failed to save portfolio: {e}", file=sys.stderr)
+                self.send_json_response({"status": "error", "message": str(e)}, status_code=400)
+            return
+
+        self.send_error(404, "Endpoint not found")
+
+    def load_portfolio(self):
+        if os.path.exists(PORTFOLIO_FILE):
+            try:
+                with open(PORTFOLIO_FILE, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"[Warn] Error loading portfolio file: {e}", file=sys.stderr)
+        return None
+
+    def save_portfolio(self, data):
+        try:
+            with open(PORTFOLIO_FILE, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2)
+        except Exception as e:
+            print(f"[Error] Error writing portfolio file: {e}", file=sys.stderr)
+
     def send_json_response(self, data, status_code=200):
         body = json.dumps(data).encode('utf-8')
         self.send_response(status_code)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.send_header('Cache-Control', 'no-cache')
         self.send_header('Content-Length', str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
 
     def fetch_usdinr_rate(self):
         now = time.time()
@@ -228,6 +277,7 @@ def run():
     print(f"  SheetTrader Pro - Paper Trading Server")
     print(f"  Serving on: http://0.0.0.0:{PORT}")
     print(f"  Directory:  {DIRECTORY}")
+    print(f"  Multi-Device Sync & Live Quotes Active")
     print("=" * 60)
 
     httpd = HTTPServer(('0.0.0.0', PORT), SheetTraderHandler)
