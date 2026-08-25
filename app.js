@@ -1,7 +1,11 @@
 /**
  * SheetTrader Pro - Interactive Spreadsheet Engine & Multi-Exchange Client
  * Supports NSE (.NS), BSE (.BO), and US/Global Markets
- * Features: Automatic Cloud Sync across PC & Mobile Devices
+ * Features:
+ * - Dedicated Indian (NSE/BSE) Spreadsheet with ₹ INR P&L box
+ * - Dedicated Global (US/Global) Spreadsheet with $ USD P&L box
+ * - Shared, unified Purchasing Power (₹10 Crore / ~$1.16M USD)
+ * - Automatic Cloud Sync across PC & Mobile Devices
  */
 
 class SpreadsheetApp {
@@ -18,7 +22,7 @@ class SpreadsheetApp {
     this.watchlist = [];
     this.tradeHistory = [];
     this.quotes = {};
-    this.activeTab = 'active-holdings';
+    this.activeTab = 'active-indian';
     this.refreshTimer = null;
     this.backendAvailable = false;
     this.pendingConfirmCallback = null;
@@ -35,6 +39,20 @@ class SpreadsheetApp {
   }
 
   // ----------------------------------------------------
+  // Helper: Detect Indian vs Global Stock
+  // ----------------------------------------------------
+  isIndianHolding(holding) {
+    if (!holding) return false;
+    const sym = holding.symbol || '';
+    const exch = holding.exchange || '';
+    const curr = holding.currency || '';
+    if (sym.endsWith('.NS') || sym.endsWith('.BO')) return true;
+    if (exch === 'NSE' || exch === 'BSE') return true;
+    if (curr === 'INR') return true;
+    return false;
+  }
+
+  // ----------------------------------------------------
   // State Persistence & Cloud Synchronization
   // ----------------------------------------------------
   loadLocalState() {
@@ -43,7 +61,7 @@ class SpreadsheetApp {
       try {
         const parsed = JSON.parse(saved);
         this.displayCurrency = parsed.displayCurrency || 'INR';
-        this.cashBalance = parsed.cashBalance ?? (this.displayCurrency === 'INR' ? this.defaultCashINR : this.defaultCashUSD);
+        this.cashBalance = parsed.cashBalance ?? this.defaultCashINR;
         this.holdings = parsed.holdings || [];
         this.watchlist = parsed.watchlist || [];
         this.tradeHistory = parsed.tradeHistory || [];
@@ -76,7 +94,6 @@ class SpreadsheetApp {
           this.renderAll();
           console.log('[Sync] Synced latest portfolio state from server');
         } else if (this.holdings.length > 0) {
-          // If server is empty but client has data, upload client data to server
           this.pushStateToServer();
         }
       }
@@ -135,6 +152,7 @@ class SpreadsheetApp {
     this.cashBalance = 85000000.00;
     
     this.holdings = [
+      // Indian Stocks (NSE / BSE)
       {
         id: 'h_1',
         symbol: 'RELIANCE.NS',
@@ -183,6 +201,7 @@ class SpreadsheetApp {
         isWatched: true,
         targetPrice: 290.00
       },
+      // Global Stocks (US / Global)
       {
         id: 'h_5',
         symbol: 'NVDA',
@@ -194,13 +213,25 @@ class SpreadsheetApp {
         buyDate: '2024-06-15',
         isWatched: true,
         targetPrice: 140.00
+      },
+      {
+        id: 'h_6',
+        symbol: 'AAPL',
+        name: 'Apple Inc.',
+        currency: 'USD',
+        exchange: 'NASDAQ',
+        buyPrice: 220.00,
+        quantity: 150,
+        buyDate: '2024-07-01',
+        isWatched: true,
+        targetPrice: 240.00
       }
     ];
 
     this.watchlist = [
       { id: 'w_1', symbol: 'INFY.NS', name: 'Infosys Limited', currency: 'INR', exchange: 'NSE', targetPrice: 1100.00, isWatched: true },
       { id: 'w_2', symbol: 'SBIN.BO', name: 'State Bank of India (BSE)', currency: 'INR', exchange: 'BSE', targetPrice: 980.00, isWatched: true },
-      { id: 'w_3', symbol: 'AAPL', name: 'Apple Inc.', currency: 'USD', exchange: 'NASDAQ', targetPrice: 215.00, isWatched: true }
+      { id: 'w_3', symbol: 'MSFT', name: 'Microsoft Corporation', currency: 'USD', exchange: 'NASDAQ', targetPrice: 420.00, isWatched: true }
     ];
 
     this.tradeHistory = [
@@ -225,7 +256,7 @@ class SpreadsheetApp {
 
     this.saveState();
     this.syncQuotes();
-    this.showToast('Demo portfolio loaded with NSE/BSE stocks', 'success');
+    this.showToast('Demo portfolio loaded with Indian & Global stocks', 'success');
   }
 
   // ----------------------------------------------------
@@ -263,14 +294,12 @@ class SpreadsheetApp {
   toggleCurrency() {
     if (this.displayCurrency === 'INR') {
       this.displayCurrency = 'USD';
-      this.cashBalance = +(this.cashBalance / this.usdInrRate).toFixed(2);
     } else {
       this.displayCurrency = 'INR';
-      this.cashBalance = +(this.cashBalance * this.usdInrRate).toFixed(2);
     }
     this.updateCurrencyUI();
-    this.saveState();
-    this.showToast(`Switched display currency to ${this.displayCurrency === 'INR' ? '₹ INR' : '$ USD'}`, 'success');
+    this.renderAll();
+    this.showToast(`Switched display currency for totals to ${this.displayCurrency === 'INR' ? '₹ INR' : '$ USD'}`, 'success');
   }
 
   updateCurrencyUI() {
@@ -310,7 +339,8 @@ class SpreadsheetApp {
     });
 
     document.getElementById('btnOpenBuyModal').addEventListener('click', () => {
-      this.openBuyModal();
+      const defaultExch = this.activeTab === 'active-global' ? 'US' : 'NSE';
+      this.openBuyModal('', defaultExch);
     });
 
     document.getElementById('btnClearAll').addEventListener('click', () => {
@@ -330,7 +360,7 @@ class SpreadsheetApp {
     document.getElementById('btnResetDemo').addEventListener('click', () => {
       this.showWarningModal({
         title: '⚡ Load Demo Portfolio',
-        message: 'Are you sure you want to load Demo Data? This will overwrite your current active holdings and trade ledger with sample NSE/BSE stock positions.',
+        message: 'Are you sure you want to load Demo Data? This will overwrite your current active holdings and trade ledger with sample Indian & Global stock positions.',
         subtext: 'You can clear or edit these sample positions at any time.',
         confirmText: 'Yes, Load Demo Data',
         isDanger: false,
@@ -350,7 +380,7 @@ class SpreadsheetApp {
         const exch = document.getElementById('formulaExchangeSelect').value;
         if (val) {
           const resolved = this.formatSymbolWithExchange(val, exch);
-          this.openBuyModal(resolved);
+          this.openBuyModal(resolved, exch);
           e.target.value = '';
         }
       }
@@ -362,7 +392,7 @@ class SpreadsheetApp {
       const val = input.value.trim().toUpperCase();
       if (val) {
         const resolved = this.formatSymbolWithExchange(val, exch);
-        this.openBuyModal(resolved);
+        this.openBuyModal(resolved, exch);
         input.value = '';
       }
     });
@@ -370,6 +400,13 @@ class SpreadsheetApp {
     document.getElementById('buyExchange').addEventListener('change', (e) => {
       const symInput = document.getElementById('buySymbol');
       const val = symInput.value.trim().toUpperCase();
+      const currSpan = document.getElementById('modalBuyPriceCurrency');
+      if (e.target.value === 'US') {
+        currSpan.textContent = '$';
+      } else {
+        currSpan.textContent = '₹';
+      }
+
       if (val) {
         symInput.value = this.formatSymbolWithExchange(val, e.target.value);
         this.fetchQuoteForBuyModal();
@@ -382,15 +419,20 @@ class SpreadsheetApp {
       const p = parseFloat(buyPriceInput.value) || 0;
       const q = parseFloat(buyQtyInput.value) || 0;
       const total = p * q;
-      const curr = this.getTickerCurrency(document.getElementById('buySymbol').value.trim().toUpperCase());
+      const rawSym = document.getElementById('buySymbol').value.trim().toUpperCase();
+      const exch = document.getElementById('buyExchange').value;
+      const resolvedSym = this.formatSymbolWithExchange(rawSym, exch);
+      const curr = this.getTickerCurrency(resolvedSym);
+      
       document.getElementById('modalTotalInvested').textContent = this.formatCurrency(total, curr);
       
-      const totalInDisplayCurr = curr === this.displayCurrency ? total : 
-        (curr === 'USD' ? total * this.usdInrRate : total / this.usdInrRate);
-      const remaining = this.cashBalance - totalInDisplayCurr;
+      // Calculate remaining shared buying power in INR
+      const costInINR = curr === 'INR' ? total : (total * this.usdInrRate);
+      const remainingINR = this.cashBalance - costInINR;
+      
       const remainingEl = document.getElementById('modalCashRemaining');
-      remainingEl.textContent = this.formatCurrency(remaining, this.displayCurrency);
-      remainingEl.style.color = remaining < 0 ? 'var(--loss-red)' : 'var(--text-primary)';
+      remainingEl.textContent = this.formatCurrency(remainingINR, 'INR');
+      remainingEl.style.color = remainingINR < 0 ? 'var(--loss-red)' : 'var(--text-primary)';
     };
 
     buyPriceInput.addEventListener('input', updateBuyModalPreview);
@@ -490,7 +532,6 @@ class SpreadsheetApp {
           const fxData = await fxRes.json();
           if (fxData.USDINR) this.usdInrRate = fxData.USDINR;
         }
-        // Sync portfolio data from server
         await this.syncWithServer();
       } else {
         this.backendAvailable = false;
@@ -649,186 +690,208 @@ class SpreadsheetApp {
   }
 
   // ----------------------------------------------------
-  // Rendering & Dynamic Formula Calculations
+  // Rendering & Dedicated P&L Boxes
   // ----------------------------------------------------
   renderAll() {
     this.renderKPIs();
     this.renderTabs();
-    this.renderHoldingsTable();
+    this.renderHoldingsTables();
     this.renderWatchlistTable();
     this.renderHistoryTable();
   }
 
   renderTabs() {
-    document.getElementById('tabBadgeHoldings').textContent = this.holdings.length;
+    const indianCount = this.holdings.filter(h => this.isIndianHolding(h)).length;
+    const globalCount = this.holdings.filter(h => !this.isIndianHolding(h)).length;
+
+    document.getElementById('tabBadgeIndian').textContent = indianCount;
+    document.getElementById('tabBadgeGlobal').textContent = globalCount;
     document.getElementById('tabBadgeWatchlist').textContent = this.watchlist.length;
     document.getElementById('tabBadgeHistory').textContent = this.tradeHistory.length;
   }
 
   renderKPIs() {
-    let totalInvestedInDisplayCurr = 0;
-    let totalCurrentValueInDisplayCurr = 0;
+    let indianInvested = 0;
+    let indianValue = 0;
+    let indianCount = 0;
+
+    let globalInvested = 0;
+    let globalValue = 0;
+    let globalCount = 0;
 
     this.holdings.forEach(h => {
       const q = this.quotes[h.symbol] || { price: h.buyPrice, currency: h.currency || 'INR' };
-      const holdingCurr = h.currency || q.currency || 'INR';
-      
       const invested = h.buyPrice * h.quantity;
       const currVal = q.price * h.quantity;
 
-      let investedNormalized = invested;
-      let currValNormalized = currVal;
-
-      if (this.displayCurrency === 'INR' && holdingCurr === 'USD') {
-        investedNormalized *= this.usdInrRate;
-        currValNormalized *= this.usdInrRate;
-      } else if (this.displayCurrency === 'USD' && holdingCurr === 'INR') {
-        investedNormalized /= this.usdInrRate;
-        currValNormalized /= this.usdInrRate;
+      if (this.isIndianHolding(h)) {
+        indianInvested += invested;
+        indianValue += currVal;
+        indianCount++;
+      } else {
+        globalInvested += invested;
+        globalValue += currVal;
+        globalCount++;
       }
-
-      totalInvestedInDisplayCurr += investedNormalized;
-      totalCurrentValueInDisplayCurr += currValNormalized;
     });
 
-    const unrealizedPnl = totalCurrentValueInDisplayCurr - totalInvestedInDisplayCurr;
-    const unrealizedPct = totalInvestedInDisplayCurr > 0 ? (unrealizedPnl / totalInvestedInDisplayCurr) * 100 : 0;
+    // Indian P&L (in ₹ INR)
+    const indianPnl = indianValue - indianInvested;
+    const indianPct = indianInvested > 0 ? (indianPnl / indianInvested) * 100 : 0;
 
-    const netWorth = this.cashBalance + totalCurrentValueInDisplayCurr;
-    const baseDefaultCash = this.displayCurrency === 'INR' ? this.defaultCashINR : this.defaultCashUSD;
-    const allTimePnl = (netWorth - baseDefaultCash);
-    const allTimePct = (allTimePnl / baseDefaultCash) * 100;
+    const indPnlEl = document.getElementById('kpiIndianPnl');
+    indPnlEl.textContent = `${indianPnl >= 0 ? '+' : ''}${this.formatCurrency(indianPnl, 'INR')}`;
+    indPnlEl.className = `kpi-value ${indianPnl >= 0 ? 'text-gain' : 'text-loss'}`;
 
-    let totalRealizedPnlInDisplayCurr = 0;
+    const indSubEl = document.getElementById('kpiIndianSub');
+    indSubEl.textContent = `Invested: ${this.formatCurrency(indianInvested, 'INR')} (${indianPct >= 0 ? '+' : ''}${indianPct.toFixed(2)}%)`;
+    indSubEl.className = `kpi-subtext ${indianPnl >= 0 ? 'text-gain' : 'text-loss'}`;
+    document.getElementById('kpiIndianCountBadge').textContent = `${indianCount} stock${indianCount === 1 ? '' : 's'}`;
+
+    // Global P&L (in $ USD)
+    const globalPnl = globalValue - globalInvested;
+    const globalPct = globalInvested > 0 ? (globalPnl / globalInvested) * 100 : 0;
+
+    const globPnlEl = document.getElementById('kpiGlobalPnl');
+    globPnlEl.textContent = `${globalPnl >= 0 ? '+' : ''}${this.formatCurrency(globalPnl, 'USD')}`;
+    globPnlEl.className = `kpi-value ${globalPnl >= 0 ? 'text-gain' : 'text-loss'}`;
+
+    const globSubEl = document.getElementById('kpiGlobalSub');
+    globSubEl.textContent = `Invested: ${this.formatCurrency(globalInvested, 'USD')} (${globalPct >= 0 ? '+' : ''}${globalPct.toFixed(2)}%)`;
+    globSubEl.className = `kpi-subtext ${globalPnl >= 0 ? 'text-gain' : 'text-loss'}`;
+    document.getElementById('kpiGlobalCountBadge').textContent = `${globalCount} stock${globalCount === 1 ? '' : 's'}`;
+
+    // Realized Closed Trades
+    let totalRealizedPnlInINR = 0;
     let winCount = 0;
     this.tradeHistory.forEach(th => {
       const thCurr = th.currency || 'INR';
       let pnlNorm = th.realizedPnl;
-      if (this.displayCurrency === 'INR' && thCurr === 'USD') pnlNorm *= this.usdInrRate;
-      else if (this.displayCurrency === 'USD' && thCurr === 'INR') pnlNorm /= this.usdInrRate;
+      if (thCurr === 'USD') pnlNorm *= this.usdInrRate;
 
-      totalRealizedPnlInDisplayCurr += pnlNorm;
+      totalRealizedPnlInINR += pnlNorm;
       if (th.realizedPnl > 0) winCount++;
     });
     const winRate = this.tradeHistory.length > 0 ? ((winCount / this.tradeHistory.length) * 100).toFixed(0) : 0;
 
-    // Update DOM
-    const netEl = document.getElementById('kpiNetWorth');
-    if (netEl) netEl.textContent = this.formatCurrency(netWorth, this.displayCurrency);
-    const netSub = document.getElementById('kpiNetWorthSub');
-    if (netSub) {
-      netSub.textContent = `${allTimePnl >= 0 ? '+' : ''}${this.formatCurrency(allTimePnl, this.displayCurrency)} (${allTimePct.toFixed(2)}%) all-time`;
-      netSub.className = `kpi-subtext ${allTimePnl >= 0 ? 'text-gain' : 'text-loss'}`;
-    }
-
-    document.getElementById('kpiInvested').textContent = this.formatCurrency(totalInvestedInDisplayCurr, this.displayCurrency);
-    document.getElementById('kpiHoldingsCount').textContent = `${this.holdings.length} open position${this.holdings.length === 1 ? '' : 's'}`;
-
-    const unPnlEl = document.getElementById('kpiUnrealizedPnl');
-    unPnlEl.textContent = `${unrealizedPnl >= 0 ? '+' : ''}${this.formatCurrency(unrealizedPnl, this.displayCurrency)}`;
-    unPnlEl.className = `kpi-value ${unrealizedPnl >= 0 ? 'text-gain' : 'text-loss'}`;
-
-    const unPctEl = document.getElementById('kpiUnrealizedPct');
-    unPctEl.textContent = `${unrealizedPct >= 0 ? '+' : ''}${unrealizedPct.toFixed(2)}% return`;
-    unPctEl.className = `kpi-subtext ${unrealizedPct >= 0 ? 'text-gain' : 'text-loss'}`;
-
     const realEl = document.getElementById('kpiRealizedPnl');
-    realEl.textContent = `${totalRealizedPnlInDisplayCurr >= 0 ? '+' : ''}${this.formatCurrency(totalRealizedPnlInDisplayCurr, this.displayCurrency)}`;
-    realEl.className = `kpi-value ${totalRealizedPnlInDisplayCurr >= 0 ? 'text-gain' : 'text-loss'}`;
-
+    realEl.textContent = `${totalRealizedPnlInINR >= 0 ? '+' : ''}${this.formatCurrency(totalRealizedPnlInINR, 'INR')}`;
+    realEl.className = `kpi-value ${totalRealizedPnlInINR >= 0 ? 'text-gain' : 'text-loss'}`;
     document.getElementById('kpiWinRate').textContent = `${this.tradeHistory.length} closed trades (${winRate}% win rate)`;
-    document.getElementById('kpiCashBalance').textContent = this.formatCurrency(this.cashBalance, this.displayCurrency);
+
+    // Shared Purchasing Power (Unified Buying Power)
+    const usdEquiv = (this.cashBalance / this.usdInrRate);
+    document.getElementById('kpiCashBalance').textContent = this.formatCurrency(this.cashBalance, 'INR');
+    const cashSubEl = document.getElementById('kpiCashSub');
+    if (cashSubEl) {
+      cashSubEl.textContent = `Shared (~${this.formatCurrency(usdEquiv, 'USD')})`;
+    }
   }
 
-  renderHoldingsTable() {
-    const tbody = document.getElementById('holdingsTableBody');
-    const emptyState = document.getElementById('holdingsEmptyState');
+  renderHoldingsTables() {
+    const indianHoldings = this.holdings.filter(h => this.isIndianHolding(h));
+    const globalHoldings = this.holdings.filter(h => !this.isIndianHolding(h));
 
-    if (this.holdings.length === 0) {
-      tbody.innerHTML = '';
-      emptyState.style.display = 'block';
-      return;
+    // Render Indian Table
+    const indianTbody = document.getElementById('indianHoldingsTableBody');
+    const indianEmpty = document.getElementById('indianHoldingsEmptyState');
+
+    if (indianHoldings.length === 0) {
+      indianTbody.innerHTML = '';
+      indianEmpty.style.display = 'block';
+    } else {
+      indianEmpty.style.display = 'none';
+      indianTbody.innerHTML = indianHoldings.map(h => this.renderHoldingRowHtml(h, 'INR')).join('');
     }
-    emptyState.style.display = 'none';
 
-    tbody.innerHTML = this.holdings.map(h => {
-      const q = this.quotes[h.symbol] || {
-        price: h.buyPrice,
-        prevPrice: h.buyPrice,
-        change: 0,
-        changePct: 0,
-        name: h.name || h.symbol,
-        currency: h.currency || 'INR',
-        exchange: h.exchange || 'NSE',
-        history30d: []
-      };
+    // Render Global Table
+    const globalTbody = document.getElementById('globalHoldingsTableBody');
+    const globalEmpty = document.getElementById('globalHoldingsEmptyState');
 
-      const holdingCurr = h.currency || q.currency || 'INR';
-      const invested = h.buyPrice * h.quantity;
-      const currVal = q.price * h.quantity;
-      const pnl = currVal - invested;
-      const returnPct = invested > 0 ? (pnl / invested) * 100 : 0;
-      const isGain = pnl >= 0;
-      const isDayGain = (q.changePct || 0) >= 0;
+    if (globalHoldings.length === 0) {
+      globalTbody.innerHTML = '';
+      globalEmpty.style.display = 'block';
+    } else {
+      globalEmpty.style.display = 'none';
+      globalTbody.innerHTML = globalHoldings.map(h => this.renderHoldingRowHtml(h, 'USD')).join('');
+    }
+  }
 
-      let flashClass = '';
-      if (q.prevPrice && q.price !== q.prevPrice) {
-        flashClass = q.price > q.prevPrice ? 'flash-up' : 'flash-down';
-      }
+  renderHoldingRowHtml(h, holdingCurr) {
+    const q = this.quotes[h.symbol] || {
+      price: h.buyPrice,
+      prevPrice: h.buyPrice,
+      change: 0,
+      changePct: 0,
+      name: h.name || h.symbol,
+      currency: holdingCurr,
+      exchange: h.exchange || (holdingCurr === 'INR' ? 'NSE' : 'US'),
+      history30d: []
+    };
 
-      const sparklineSvg = this.generateSparklineSvg(q.history30d, isGain);
-      const exchBadge = this.getExchangeBadgeHtml(h.symbol, h.exchange || q.exchange);
+    const invested = h.buyPrice * h.quantity;
+    const currVal = q.price * h.quantity;
+    const pnl = currVal - invested;
+    const returnPct = invested > 0 ? (pnl / invested) * 100 : 0;
+    const isGain = pnl >= 0;
 
-      return `
-        <tr data-id="${h.id}">
-          <td class="cell-center">
-            <button class="star-toggle ${h.isWatched ? 'starred' : ''}" 
-              onclick="window.sheetApp.toggleWatchlistHolding('${h.id}')" 
-              title="${h.isWatched ? 'Starred in Watchlist' : 'Star to Watchlist'}">
-              ${h.isWatched ? '⭐' : '☆'}
-            </button>
-          </td>
-          <td>
-            <div style="display: flex; align-items: center;">
-              <strong style="color: var(--accent-blue); font-family: var(--font-mono); font-size: 0.92rem;">${h.symbol}</strong>
-              ${exchBadge}
-            </div>
-          </td>
-          <td class="cell-right cell-editable">
-            <input type="number" step="0.01" value="${h.buyPrice.toFixed(2)}" 
-              onchange="window.sheetApp.updateHoldingCell('${h.id}', 'buyPrice', this.value)" 
-              title="Click to edit Buy Price" />
-          </td>
-          <td class="cell-right cell-editable">
-            <input type="number" step="0.01" value="${h.quantity}" 
-              onchange="window.sheetApp.updateHoldingCell('${h.id}', 'quantity', this.value)" 
-              title="Click to edit Shares" />
-          </td>
-          <td class="cell-right cell-mono">${this.formatCurrency(invested, holdingCurr)}</td>
-          <td class="cell-right cell-mono ${flashClass}">
-            <strong>${this.formatCurrency(q.price, holdingCurr)}</strong>
-          </td>
-          <td class="cell-right">
-            <span class="badge-pnl ${isGain ? 'gain' : 'loss'}">
-              ${isGain ? '+' : ''}${this.formatCurrency(pnl, holdingCurr)}
-            </span>
-          </td>
-          <td class="cell-right cell-mono ${isGain ? 'text-gain' : 'text-loss'}" style="font-weight: 600;">
-            ${isGain ? '+' : ''}${returnPct.toFixed(2)}%
-          </td>
-          <td class="cell-center sparkline-cell">
-            ${sparklineSvg}
-          </td>
-          <td class="cell-center">
-            <div style="display: flex; gap: 4px; justify-content: center;">
-              <button class="btn btn-secondary btn-sm" onclick="window.sheetApp.openBuyModal('${h.symbol}')" title="Buy more shares">➕</button>
-              <button class="btn btn-success btn-sm" onclick="window.sheetApp.openSellModal('${h.id}')" title="Sell / Close position">Sell</button>
-              <button class="btn btn-secondary btn-sm" onclick="window.sheetApp.deleteHolding('${h.id}')" title="Remove row">🗑️</button>
-            </div>
-          </td>
-        </tr>
-      `;
-    }).join('');
+    let flashClass = '';
+    if (q.prevPrice && q.price !== q.prevPrice) {
+      flashClass = q.price > q.prevPrice ? 'flash-up' : 'flash-down';
+    }
+
+    const sparklineSvg = this.generateSparklineSvg(q.history30d, isGain);
+    const exchBadge = this.getExchangeBadgeHtml(h.symbol, h.exchange || q.exchange);
+
+    return `
+      <tr data-id="${h.id}">
+        <td class="cell-center">
+          <button class="star-toggle ${h.isWatched ? 'starred' : ''}" 
+            onclick="window.sheetApp.toggleWatchlistHolding('${h.id}')" 
+            title="${h.isWatched ? 'Starred in Watchlist' : 'Star to Watchlist'}">
+            ${h.isWatched ? '⭐' : '☆'}
+          </button>
+        </td>
+        <td>
+          <div style="display: flex; align-items: center;">
+            <strong style="color: var(--accent-blue); font-family: var(--font-mono); font-size: 0.92rem;">${h.symbol}</strong>
+            ${exchBadge}
+          </div>
+        </td>
+        <td class="cell-right cell-editable">
+          <input type="number" step="0.01" value="${h.buyPrice.toFixed(2)}" 
+            onchange="window.sheetApp.updateHoldingCell('${h.id}', 'buyPrice', this.value)" 
+            title="Click to edit Buy Price" />
+        </td>
+        <td class="cell-right cell-editable">
+          <input type="number" step="0.01" value="${h.quantity}" 
+            onchange="window.sheetApp.updateHoldingCell('${h.id}', 'quantity', this.value)" 
+            title="Click to edit Shares" />
+        </td>
+        <td class="cell-right cell-mono">${this.formatCurrency(invested, holdingCurr)}</td>
+        <td class="cell-right cell-mono ${flashClass}">
+          <strong>${this.formatCurrency(q.price, holdingCurr)}</strong>
+        </td>
+        <td class="cell-right">
+          <span class="badge-pnl ${isGain ? 'gain' : 'loss'}">
+            ${isGain ? '+' : ''}${this.formatCurrency(pnl, holdingCurr)}
+          </span>
+        </td>
+        <td class="cell-right cell-mono ${isGain ? 'text-gain' : 'text-loss'}" style="font-weight: 600;">
+          ${isGain ? '+' : ''}${returnPct.toFixed(2)}%
+        </td>
+        <td class="cell-center sparkline-cell">
+          ${sparklineSvg}
+        </td>
+        <td class="cell-center">
+          <div style="display: flex; gap: 4px; justify-content: center;">
+            <button class="btn btn-secondary btn-sm" onclick="window.sheetApp.openBuyModal('${h.symbol}')" title="Buy more shares">➕</button>
+            <button class="btn btn-success btn-sm" onclick="window.sheetApp.openSellModal('${h.id}')" title="Sell / Close position">Sell</button>
+            <button class="btn btn-secondary btn-sm" onclick="window.sheetApp.deleteHolding('${h.id}')" title="Remove row">🗑️</button>
+          </div>
+        </td>
+      </tr>
+    `;
   }
 
   renderWatchlistTable() {
@@ -843,18 +906,19 @@ class SpreadsheetApp {
     emptyState.style.display = 'none';
 
     tbody.innerHTML = this.watchlist.map(w => {
+      const isIndian = this.isIndianHolding(w);
+      const wCurr = isIndian ? 'INR' : 'USD';
       const q = this.quotes[w.symbol] || {
-        price: 1000,
+        price: isIndian ? 1000 : 150,
         changePct: 0,
-        high52: 1200,
-        low52: 800,
+        high52: isIndian ? 1200 : 180,
+        low52: isIndian ? 800 : 120,
         name: w.name || w.symbol,
-        currency: w.currency || 'INR',
-        exchange: w.exchange || 'NSE',
+        currency: wCurr,
+        exchange: w.exchange || (isIndian ? 'NSE' : 'US'),
         history30d: []
       };
 
-      const wCurr = w.currency || q.currency || 'INR';
       const isDayGain = (q.changePct || 0) >= 0;
       const target = w.targetPrice || q.price;
       const distancePct = target > 0 ? ((q.price - target) / target) * 100 : 0;
@@ -934,7 +998,7 @@ class SpreadsheetApp {
 
     tbody.innerHTML = this.tradeHistory.map(th => {
       const isGain = th.realizedPnl >= 0;
-      const thCurr = th.currency || 'INR';
+      const thCurr = th.currency || (this.isIndianHolding(th) ? 'INR' : 'USD');
       const exchBadge = this.getExchangeBadgeHtml(th.symbol, th.exchange);
 
       return `
@@ -1004,23 +1068,35 @@ class SpreadsheetApp {
   }
 
   // ----------------------------------------------------
-  // Position & Trade Operations
+  // Position & Trade Operations (Shared Purchasing Power)
   // ----------------------------------------------------
-  openBuyModal(prefillSymbol = '') {
+  openBuyModal(prefillSymbol = '', defaultExchange = null) {
     const symbolInput = document.getElementById('buySymbol');
     const priceInput = document.getElementById('buyPrice');
     const qtyInput = document.getElementById('buyQty');
     const dateInput = document.getElementById('buyDate');
     const exchSelect = document.getElementById('buyExchange');
+    const currSpan = document.getElementById('modalBuyPriceCurrency');
 
     symbolInput.value = prefillSymbol;
     qtyInput.value = '100';
     dateInput.value = new Date().toISOString().split('T')[0];
 
-    if (prefillSymbol.endsWith('.NS')) exchSelect.value = 'NSE';
-    else if (prefillSymbol.endsWith('.BO')) exchSelect.value = 'BSE';
-    else if (prefillSymbol) exchSelect.value = 'US';
-    else exchSelect.value = 'NSE';
+    if (defaultExchange) {
+      exchSelect.value = defaultExchange;
+    } else if (prefillSymbol.endsWith('.NS')) {
+      exchSelect.value = 'NSE';
+    } else if (prefillSymbol.endsWith('.BO')) {
+      exchSelect.value = 'BSE';
+    } else if (prefillSymbol) {
+      exchSelect.value = 'US';
+    } else if (this.activeTab === 'active-global') {
+      exchSelect.value = 'US';
+    } else {
+      exchSelect.value = 'NSE';
+    }
+
+    currSpan.textContent = exchSelect.value === 'US' ? '$' : '₹';
 
     if (prefillSymbol && this.quotes[prefillSymbol]) {
       priceInput.value = this.quotes[prefillSymbol].price;
@@ -1071,11 +1147,11 @@ class SpreadsheetApp {
 
     const curr = this.getTickerCurrency(symbol);
     const totalCost = buyPrice * quantity;
-    const totalInDisplayCurr = curr === this.displayCurrency ? totalCost : 
-      (curr === 'USD' ? totalCost * this.usdInrRate : totalCost / this.usdInrRate);
+    // Shared purchasing power in INR
+    const costInINR = curr === 'INR' ? totalCost : (totalCost * this.usdInrRate);
 
     const performBuy = () => {
-      this.cashBalance -= totalInDisplayCurr;
+      this.cashBalance -= costInINR;
 
       const existing = this.holdings.find(h => h.symbol === symbol);
       if (existing) {
@@ -1087,7 +1163,7 @@ class SpreadsheetApp {
       } else {
         let resolvedExch = 'NSE';
         if (symbol.endsWith('.BO')) resolvedExch = 'BSE';
-        else if (!symbol.includes('.')) resolvedExch = 'US';
+        else if (curr === 'USD' || !symbol.includes('.')) resolvedExch = 'US';
 
         this.holdings.unshift({
           id: `h_${Date.now()}`,
@@ -1109,10 +1185,10 @@ class SpreadsheetApp {
       this.syncQuotes();
     };
 
-    if (totalInDisplayCurr > this.cashBalance) {
+    if (costInINR > this.cashBalance) {
       this.showWarningModal({
         title: '⚠️ Insufficient Cash Margin Warning',
-        message: `Order total (${this.formatCurrency(totalCost, curr)}) exceeds your remaining buying power (${this.formatCurrency(this.cashBalance, this.displayCurrency)}).`,
+        message: `Order total (${this.formatCurrency(totalCost, curr)} / ~${this.formatCurrency(costInINR, 'INR')}) exceeds your remaining buying power (${this.formatCurrency(this.cashBalance, 'INR')}).`,
         subtext: 'Do you wish to execute this order on margin paper trading mode?',
         confirmText: 'Execute on Margin',
         isDanger: false,
@@ -1128,12 +1204,13 @@ class SpreadsheetApp {
     if (!holding) return;
 
     const q = this.quotes[holding.symbol] || { price: holding.buyPrice };
-    const curr = holding.currency || 'INR';
+    const curr = holding.currency || (this.isIndianHolding(holding) ? 'INR' : 'USD');
 
     document.getElementById('sellHoldingId').value = holding.id;
     document.getElementById('sellModalSymbol').textContent = `${holding.symbol} (${holding.exchange || 'NSE'})`;
     document.getElementById('sellModalOwnedQty').textContent = `${holding.quantity} shares`;
     document.getElementById('sellModalBuyPrice').textContent = this.formatCurrency(holding.buyPrice, curr);
+    document.getElementById('modalSellPriceCurrency').textContent = curr === 'USD' ? '$' : '₹';
 
     document.getElementById('sellPrice').value = q.price;
     document.getElementById('sellQty').value = holding.quantity;
@@ -1155,7 +1232,7 @@ class SpreadsheetApp {
     const sellPrice = parseFloat(document.getElementById('sellPrice').value);
     const sellQty = parseFloat(document.getElementById('sellQty').value);
     const sellDate = document.getElementById('sellDate').value || new Date().toISOString().split('T')[0];
-    const curr = holding.currency || 'INR';
+    const curr = holding.currency || (this.isIndianHolding(holding) ? 'INR' : 'USD');
 
     if (isNaN(sellPrice) || isNaN(sellQty) || sellPrice <= 0 || sellQty <= 0) {
       this.showToast('Please enter valid sell price and quantity', 'error');
@@ -1177,9 +1254,9 @@ class SpreadsheetApp {
     const diffTime = Math.abs(d2 - d1);
     const holdingDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
 
-    const proceedsInDisplayCurr = curr === this.displayCurrency ? grossProceeds : 
-      (curr === 'USD' ? grossProceeds * this.usdInrRate : grossProceeds / this.usdInrRate);
-    this.cashBalance += proceedsInDisplayCurr;
+    // Return proceeds to unified shared buying power in INR
+    const proceedsInINR = curr === 'INR' ? grossProceeds : (grossProceeds * this.usdInrRate);
+    this.cashBalance += proceedsInINR;
 
     this.tradeHistory.unshift({
       id: `th_${Date.now()}`,
@@ -1187,7 +1264,7 @@ class SpreadsheetApp {
       action: 'SELL_CLOSE',
       quantity: sellQty,
       currency: curr,
-      exchange: holding.exchange || 'NSE',
+      exchange: holding.exchange || (curr === 'INR' ? 'NSE' : 'US'),
       buyPrice: holding.buyPrice,
       sellPrice: sellPrice,
       costBasis: costBasis,
@@ -1217,7 +1294,7 @@ class SpreadsheetApp {
     const num = parseFloat(value);
     if (isNaN(num) || num <= 0) {
       this.showToast('Value must be a positive number', 'error');
-      this.renderHoldingsTable();
+      this.renderHoldingsTables();
       return;
     }
 
@@ -1259,8 +1336,8 @@ class SpreadsheetApp {
           id: `w_${Date.now()}`,
           symbol: holding.symbol,
           name: holding.name || holding.symbol,
-          currency: holding.currency || 'INR',
-          exchange: holding.exchange || 'NSE',
+          currency: holding.currency || (this.isIndianHolding(holding) ? 'INR' : 'USD'),
+          exchange: holding.exchange || (this.isIndianHolding(holding) ? 'NSE' : 'US'),
           targetPrice: holding.targetPrice || +(holding.buyPrice * 0.95).toFixed(2),
           isWatched: true
         });
@@ -1275,7 +1352,7 @@ class SpreadsheetApp {
   }
 
   promptAddWatchlist() {
-    const sym = prompt('Enter Stock Ticker to Watch (e.g. RELIANCE.NS, TCS.NS, ITC.BO, NVDA):');
+    const sym = prompt('Enter Stock Ticker to Watch (e.g. RELIANCE, TCS.NS, ITC.BO, NVDA, AAPL):');
     if (!sym) return;
 
     const cleanSym = this.formatSymbolWithExchange(sym.trim().toUpperCase(), 'AUTO');
@@ -1367,7 +1444,7 @@ class SpreadsheetApp {
   }
 
   exportCSV() {
-    let csv = 'Sheet,Symbol,Exchange,Company,Buy Price,Shares,Invested,Live Price,Current Value,Unrealized PnL,Return %,Target Price\n';
+    let csv = 'Sheet,Symbol,Exchange,Currency,Buy Price,Shares,Invested,Live Price,Current Value,Unrealized PnL,Return %,Target Price\n';
     
     this.holdings.forEach(h => {
       const q = this.quotes[h.symbol] || { price: h.buyPrice };
@@ -1375,11 +1452,12 @@ class SpreadsheetApp {
       const currVal = q.price * h.quantity;
       const pnl = currVal - invested;
       const roi = invested > 0 ? (pnl / invested) * 100 : 0;
-      csv += `Holdings,"${h.symbol}","${h.exchange || 'NSE'}","${h.name || h.symbol}",${h.buyPrice},${h.quantity},${invested.toFixed(2)},${q.price.toFixed(2)},${currVal.toFixed(2)},${pnl.toFixed(2)},${roi.toFixed(2)}%,\n`;
+      const sheetName = this.isIndianHolding(h) ? 'IndianHoldings' : 'GlobalHoldings';
+      csv += `${sheetName},"${h.symbol}","${h.exchange || 'NSE'}","${h.currency || 'INR'}",${h.buyPrice},${h.quantity},${invested.toFixed(2)},${q.price.toFixed(2)},${currVal.toFixed(2)},${pnl.toFixed(2)},${roi.toFixed(2)}%,\n`;
     });
 
     this.tradeHistory.forEach(th => {
-      csv += `TradeHistory,"${th.symbol}","${th.exchange || 'NSE'}",Closed Trade,${th.buyPrice},${th.quantity},${th.costBasis.toFixed(2)},${th.sellPrice.toFixed(2)},${th.grossProceeds.toFixed(2)},${th.realizedPnl.toFixed(2)},${th.roi.toFixed(2)}%,\n`;
+      csv += `TradeHistory,"${th.symbol}","${th.exchange || 'NSE'}","${th.currency || 'INR'}",${th.buyPrice},${th.quantity},${th.costBasis.toFixed(2)},${th.sellPrice.toFixed(2)},${th.grossProceeds.toFixed(2)},${th.realizedPnl.toFixed(2)},${th.roi.toFixed(2)}%,\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

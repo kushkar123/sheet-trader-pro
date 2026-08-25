@@ -17,7 +17,7 @@
       <div class="brand-logo">📊</div>
       <div class="brand-title">
         <h1>SheetTrader Pro <span class="badge">NSE / BSE / Global</span></h1>
-        <p>Live spreadsheet portfolio portal powered by yfinance</p>
+        <p>Live multi-market spreadsheet portal powered by yfinance</p>
       </div>
     </div>
 
@@ -28,8 +28,8 @@
       </div>
 
       <!-- Currency Switcher Toggle -->
-      <button id="btnToggleCurrency" class="currency-pill-btn" title="Toggle portfolio display currency (INR / USD)">
-        <span>💱 Currency:</span>
+      <button id="btnToggleCurrency" class="currency-pill-btn" title="Toggle display currency for totals (INR / USD)">
+        <span>💱 Base Currency:</span>
         <strong id="currencyDisplayLabel" style="color: var(--accent-blue);">₹ INR</strong>
       </button>
 
@@ -53,31 +53,40 @@
     </div>
   </header>
 
-  <!-- KPI Overview Ribbon -->
+  <!-- KPI Overview Ribbon with Dedicated Indian & Global P&L Boxes -->
   <section class="kpi-ribbon">
+    <!-- Box 1: Indian Portfolio P&L -->
     <div class="kpi-card">
-      <div class="kpi-label">Total Invested</div>
-      <div id="kpiInvested" class="kpi-value">₹0.00</div>
-      <div id="kpiHoldingsCount" class="kpi-subtext" style="color: var(--text-secondary);">0 open positions</div>
+      <div class="kpi-label">
+        <span style="color: #fb923c; display: flex; align-items: center; gap: 4px;">🇮🇳 Indian P&amp;L (NSE/BSE)</span>
+        <span id="kpiIndianCountBadge" class="badge" style="background: rgba(249, 115, 22, 0.2); color: #fb923c; font-size: 0.65rem;">0 stocks</span>
+      </div>
+      <div id="kpiIndianPnl" class="kpi-value">₹0.00</div>
+      <div id="kpiIndianSub" class="kpi-subtext text-gain">Invested: ₹0.00 (0.00% return)</div>
     </div>
 
+    <!-- Box 2: Global Portfolio P&L -->
     <div class="kpi-card">
-      <div class="kpi-label">Unrealized P&amp;L</div>
-      <div id="kpiUnrealizedPnl" class="kpi-value">₹0.00</div>
-      <div id="kpiUnrealizedPct" class="kpi-subtext text-gain">0.00% return</div>
+      <div class="kpi-label">
+        <span style="color: #60a5fa; display: flex; align-items: center; gap: 4px;">🌐 Global P&amp;L (US/Global)</span>
+        <span id="kpiGlobalCountBadge" class="badge" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; font-size: 0.65rem;">0 stocks</span>
+      </div>
+      <div id="kpiGlobalPnl" class="kpi-value">$0.00</div>
+      <div id="kpiGlobalSub" class="kpi-subtext text-gain">Invested: $0.00 (0.00% return)</div>
     </div>
 
+    <!-- Box 3: Realized Closed P&L -->
     <div class="kpi-card">
       <div class="kpi-label">Realized Closed P&amp;L</div>
       <div id="kpiRealizedPnl" class="kpi-value">₹0.00</div>
       <div id="kpiWinRate" class="kpi-subtext" style="color: var(--text-secondary);">0 closed trades</div>
     </div>
 
-    <!-- 50% Smaller Compact Available Cash Card -->
+    <!-- Box 4: Shared Purchasing Power (50% Compact Size) -->
     <div class="kpi-card kpi-card-compact">
       <div class="kpi-label" style="color: var(--accent-blue);">Buying Power</div>
       <div id="kpiCashBalance" class="kpi-value">₹10,00,00,000.00</div>
-      <div class="kpi-subtext" style="color: var(--text-muted);">Available Cash</div>
+      <div id="kpiCashSub" class="kpi-subtext" style="color: var(--text-muted);">Shared Buying Power</div>
     </div>
   </section>
 
@@ -92,7 +101,7 @@
           <option value="BSE">BSE (India .BO)</option>
           <option value="US">US / Global</option>
         </select>
-        <input type="text" id="formulaInput" placeholder="Enter ticker symbol (e.g. RELIANCE, TCS, INFY, ITC.BO, NVDA) & press Enter to buy..." />
+        <input type="text" id="formulaInput" placeholder="Enter ticker symbol (e.g. RELIANCE, TCS, INFY, ITC.BO, NVDA, AAPL) & press Enter to buy..." />
       </div>
       <button id="btnQuickSearch" class="btn btn-secondary btn-sm">Lookup / Buy</button>
     </div>
@@ -101,9 +110,13 @@
   <!-- Multi-Tab Workbook Navigation -->
   <nav class="sheet-tabs-container">
     <div class="sheet-tabs">
-      <button class="sheet-tab active" data-tab="active-holdings">
-        <span>📑 Active Portfolio</span>
-        <span id="tabBadgeHoldings" class="badge-count">0</span>
+      <button class="sheet-tab active" data-tab="active-indian">
+        <span>🇮🇳 Indian Portfolio (NSE/BSE)</span>
+        <span id="tabBadgeIndian" class="badge-count">0</span>
+      </button>
+      <button class="sheet-tab" data-tab="active-global">
+        <span>🌐 Global Portfolio (US/Global)</span>
+        <span id="tabBadgeGlobal" class="badge-count">0</span>
       </button>
       <button class="sheet-tab" data-tab="watchlist">
         <span>⭐ Watchlist</span>
@@ -131,38 +144,69 @@
   <!-- Main Viewport -->
   <main class="main-viewport">
 
-    <!-- Tab 1: Active Holdings Sheet -->
-    <div id="tab-active-holdings" class="sheet-panel active">
+    <!-- Tab 1: Indian Portfolio Sheet (NSE / BSE) -->
+    <div id="tab-active-indian" class="sheet-panel active">
       <div class="table-responsive">
-        <table class="spreadsheet-table" id="holdingsTable">
+        <table class="spreadsheet-table" id="indianHoldingsTable">
           <thead>
             <tr>
               <th style="width: 38px;" class="cell-center">⭐</th>
               <th style="width: 120px;">Symbol</th>
-              <th class="cell-right" style="width: 110px;">Buy Price</th>
+              <th class="cell-right" style="width: 110px;">Buy Price (₹)</th>
               <th class="cell-right" style="width: 90px;">Shares (Qty)</th>
-              <th class="cell-right" style="width: 125px;">Total Invested</th>
-              <th class="cell-right" style="width: 125px;">Current Price</th>
-              <th class="cell-right" style="width: 140px;">Unrealized P&amp;L</th>
+              <th class="cell-right" style="width: 125px;">Total Invested (₹)</th>
+              <th class="cell-right" style="width: 125px;">Current Price (₹)</th>
+              <th class="cell-right" style="width: 140px;">Unrealized P&amp;L (₹)</th>
               <th class="cell-right" style="width: 95px;">Return %</th>
               <th class="cell-center" style="width: 150px;">Past 30D Trend</th>
               <th class="cell-center" style="width: 140px;">Actions</th>
             </tr>
           </thead>
-          <tbody id="holdingsTableBody">
+          <tbody id="indianHoldingsTableBody">
             <!-- Populated via JavaScript -->
           </tbody>
         </table>
       </div>
-      <div id="holdingsEmptyState" class="empty-state">
-        <div class="empty-state-icon">💼</div>
-        <h3>Portfolio is Ready (₹10 Crore Buying Power)</h3>
-        <p>No active positions entered yet. Click <strong>New Position</strong> or use the Formula Bar to enter your first stock.</p>
-        <button class="btn btn-primary" onclick="window.sheetApp.openBuyModal()">➕ Add New Position</button>
+      <div id="indianHoldingsEmptyState" class="empty-state">
+        <div class="empty-state-icon">🇮🇳</div>
+        <h3>No Indian Stocks Added Yet</h3>
+        <p>Start tracking stocks from National Stock Exchange (NSE) or Bombay Stock Exchange (BSE).</p>
+        <button class="btn btn-primary" onclick="window.sheetApp.openBuyModal('', 'NSE')">➕ Add Indian Position</button>
       </div>
     </div>
 
-    <!-- Tab 2: Watchlist Sheet -->
+    <!-- Tab 2: Global Portfolio Sheet (US / Global Markets) -->
+    <div id="tab-active-global" class="sheet-panel">
+      <div class="table-responsive">
+        <table class="spreadsheet-table" id="globalHoldingsTable">
+          <thead>
+            <tr>
+              <th style="width: 38px;" class="cell-center">⭐</th>
+              <th style="width: 120px;">Symbol</th>
+              <th class="cell-right" style="width: 110px;">Buy Price ($)</th>
+              <th class="cell-right" style="width: 90px;">Shares (Qty)</th>
+              <th class="cell-right" style="width: 125px;">Total Invested ($)</th>
+              <th class="cell-right" style="width: 125px;">Current Price ($)</th>
+              <th class="cell-right" style="width: 140px;">Unrealized P&amp;L ($)</th>
+              <th class="cell-right" style="width: 95px;">Return %</th>
+              <th class="cell-center" style="width: 150px;">Past 30D Trend</th>
+              <th class="cell-center" style="width: 140px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="globalHoldingsTableBody">
+            <!-- Populated via JavaScript -->
+          </tbody>
+        </table>
+      </div>
+      <div id="globalHoldingsEmptyState" class="empty-state">
+        <div class="empty-state-icon">🌐</div>
+        <h3>No Global Stocks Added Yet</h3>
+        <p>Start tracking US and international stocks (e.g. NVDA, AAPL, MSFT, TSLA) sharing your unified buying power.</p>
+        <button class="btn btn-primary" onclick="window.sheetApp.openBuyModal('', 'US')">➕ Add Global Position</button>
+      </div>
+    </div>
+
+    <!-- Tab 3: Watchlist Sheet -->
     <div id="tab-watchlist" class="sheet-panel">
       <div class="table-responsive">
         <table class="spreadsheet-table" id="watchlistTable">
@@ -188,12 +232,12 @@
       <div id="watchlistEmptyState" class="empty-state">
         <div class="empty-state-icon">⭐</div>
         <h3>No Stocks on Watchlist</h3>
-        <p>Click the star icon (⭐) next to any holding or add ticker symbols from NSE/BSE you want to monitor.</p>
+        <p>Click the star icon (⭐) next to any holding or add ticker symbols from NSE/BSE/US you want to monitor.</p>
         <button class="btn btn-primary" onclick="window.sheetApp.promptAddWatchlist()">➕ Add to Watchlist</button>
       </div>
     </div>
 
-    <!-- Tab 3: Past Trade History Sheet -->
+    <!-- Tab 4: Past Trade History Sheet -->
     <div id="tab-trade-history" class="sheet-panel">
       <div class="table-responsive">
         <table class="spreadsheet-table" id="historyTable">
@@ -249,7 +293,7 @@
           <div class="form-group">
             <label for="buySymbol">Ticker Symbol</label>
             <div style="display: flex; gap: 8px;">
-              <input type="text" id="buySymbol" class="form-control" placeholder="e.g. RELIANCE, TCS, INFY, ITC, NVDA" style="text-transform: uppercase;" required />
+              <input type="text" id="buySymbol" class="form-control" placeholder="e.g. RELIANCE, TCS, INFY, ITC, NVDA, AAPL" style="text-transform: uppercase;" required />
               <button type="button" id="btnFetchBuyQuote" class="btn btn-secondary btn-sm" onclick="window.sheetApp.fetchQuoteForBuyModal()">Fetch Live</button>
             </div>
             <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">
