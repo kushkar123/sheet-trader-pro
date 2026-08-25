@@ -5,12 +5,13 @@
  * - Dedicated Indian (NSE/BSE) Spreadsheet with ₹ INR P&L box
  * - Dedicated Global (US/Global) Spreadsheet with $ USD P&L box
  * - Shared, unified Purchasing Power (₹10 Crore / ~$1.16M USD)
- * - Automatic Cloud Sync across PC & Mobile Devices
+ * - Bulletproof Cloud & Local Persistence with Anti-Data-Loss Protection
  */
 
 class SpreadsheetApp {
   constructor() {
     this.storageKey = 'sheet_trader_portfolio_v3';
+    this.backupKey = 'sheet_trader_portfolio_backup';
     this.displayCurrency = 'INR';
     this.usdInrRate = 86.50;
     this.defaultCashINR = 100000000.00; // ₹10,00,00,000 (10 Crore)
@@ -22,6 +23,7 @@ class SpreadsheetApp {
     this.watchlist = [];
     this.tradeHistory = [];
     this.quotes = {};
+    this.updatedAt = new Date().toISOString();
     this.activeTab = 'active-indian';
     this.refreshTimer = null;
     this.backendAvailable = false;
@@ -53,10 +55,19 @@ class SpreadsheetApp {
   }
 
   // ----------------------------------------------------
-  // State Persistence & Cloud Synchronization
+  // Bulletproof Persistence & Anti-Data-Loss Engine
   // ----------------------------------------------------
   loadLocalState() {
-    const saved = localStorage.getItem(this.storageKey);
+    // Check primary storage
+    let saved = localStorage.getItem(this.storageKey);
+    
+    // If empty, check older storage versions or backup to recover entries
+    if (!saved) {
+      saved = localStorage.getItem(this.backupKey) || 
+              localStorage.getItem('sheet_trader_portfolio_v2') || 
+              localStorage.getItem('sheet_trader_portfolio');
+    }
+
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -65,6 +76,12 @@ class SpreadsheetApp {
         this.holdings = parsed.holdings || [];
         this.watchlist = parsed.watchlist || [];
         this.tradeHistory = parsed.tradeHistory || [];
+        this.updatedAt = parsed.updatedAt || new Date().toISOString();
+
+        // Create a safety backup
+        if (this.holdings.length > 0 || this.tradeHistory.length > 0) {
+          localStorage.setItem(this.backupKey, saved);
+        }
       } catch (e) {
         console.error('Error parsing stored portfolio:', e);
         this.loadCleanState();
@@ -82,36 +99,67 @@ class SpreadsheetApp {
       const res = await fetch('/api/portfolio');
       if (res.ok) {
         const serverData = await res.json();
-        if (serverData && (serverData.holdings?.length > 0 || serverData.watchlist?.length > 0 || serverData.tradeHistory?.length > 0 || serverData.cashBalance !== undefined)) {
-          this.displayCurrency = serverData.displayCurrency || this.displayCurrency;
-          this.cashBalance = serverData.cashBalance ?? this.cashBalance;
-          this.holdings = serverData.holdings || [];
-          this.watchlist = serverData.watchlist || [];
-          this.tradeHistory = serverData.tradeHistory || [];
-          
-          localStorage.setItem(this.storageKey, JSON.stringify(serverData));
-          this.updateCurrencyUI();
-          this.renderAll();
-          console.log('[Sync] Synced latest portfolio state from server');
-        } else if (this.holdings.length > 0) {
+        
+        // Check if server actually has valid entries
+        const serverHasData = serverData && (
+          (serverData.holdings && serverData.holdings.length > 0) ||
+          (serverData.watchlist && serverData.watchlist.length > 0) ||
+          (serverData.tradeHistory && serverData.tradeHistory.length > 0)
+        );
+
+        const localHasData = (this.holdings && this.holdings.length > 0) ||
+                             (this.tradeHistory && this.tradeHistory.length > 0);
+
+        if (serverHasData) {
+          // If server has data, compare timestamps to determine if server is newer
+          const serverTime = new Date(serverData.updatedAt || 0).getTime();
+          const localTime = new Date(this.updatedAt || 0).getTime();
+
+          if (serverTime >= localTime || !localHasData) {
+            this.displayCurrency = serverData.displayCurrency || this.displayCurrency;
+            this.cashBalance = serverData.cashBalance ?? this.cashBalance;
+            this.holdings = serverData.holdings || [];
+            this.watchlist = serverData.watchlist || [];
+            this.tradeHistory = serverData.tradeHistory || [];
+            this.updatedAt = serverData.updatedAt || new Date().toISOString();
+
+            localStorage.setItem(this.storageKey, JSON.stringify(serverData));
+            localStorage.setItem(this.backupKey, JSON.stringify(serverData));
+            this.updateCurrencyUI();
+            this.renderAll();
+            console.log('[Sync] Loaded portfolio from cloud server');
+          } else {
+            // Local is newer than server, upload local to server
+            this.pushStateToServer();
+          }
+        } else if (localHasData) {
+          // Server was empty (e.g. fresh cloud deploy), preserve local data & push to server!
+          console.log('[Sync] Server empty after deploy; uploading local portfolio to cloud');
           this.pushStateToServer();
         }
       }
     } catch (e) {
-      console.warn('[Sync] Could not fetch server portfolio:', e);
+      console.warn('[Sync] Could not sync with server:', e);
     }
   }
 
   saveState() {
+    this.updatedAt = new Date().toISOString();
     const data = {
       displayCurrency: this.displayCurrency,
       cashBalance: this.cashBalance,
       holdings: this.holdings,
       watchlist: this.watchlist,
       tradeHistory: this.tradeHistory,
-      updatedAt: new Date().toISOString()
+      updatedAt: this.updatedAt
     };
+    
+    // Save to primary storage and backup storage
     localStorage.setItem(this.storageKey, JSON.stringify(data));
+    if (this.holdings.length > 0 || this.tradeHistory.length > 0) {
+      localStorage.setItem(this.backupKey, JSON.stringify(data));
+    }
+
     this.renderAll();
     this.pushStateToServer(data);
   }
@@ -124,7 +172,7 @@ class SpreadsheetApp {
       holdings: this.holdings,
       watchlist: this.watchlist,
       tradeHistory: this.tradeHistory,
-      updatedAt: new Date().toISOString()
+      updatedAt: this.updatedAt
     };
 
     try {
@@ -144,6 +192,7 @@ class SpreadsheetApp {
     this.holdings = [];
     this.watchlist = [];
     this.tradeHistory = [];
+    this.updatedAt = new Date().toISOString();
     this.saveState();
   }
 
@@ -299,7 +348,7 @@ class SpreadsheetApp {
     }
     this.updateCurrencyUI();
     this.renderAll();
-    this.showToast(`Switched display currency for totals to ${this.displayCurrency === 'INR' ? '₹ INR' : '$ USD'}`, 'success');
+    this.showToast(`Switched base currency for totals to ${this.displayCurrency === 'INR' ? '₹ INR' : '$ USD'}`, 'success');
   }
 
   updateCurrencyUI() {
