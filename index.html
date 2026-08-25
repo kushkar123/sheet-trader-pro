@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SheetTrader Pro | NSE, BSE & Global Paper Trading</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=4.2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -110,19 +110,19 @@
   <!-- Multi-Tab Workbook Navigation -->
   <nav class="sheet-tabs-container">
     <div class="sheet-tabs">
-      <button class="sheet-tab active" data-tab="active-indian">
+      <button class="sheet-tab active" data-tab="active-indian" onclick="window.sheetApp && window.sheetApp.switchTab('active-indian')">
         <span>🇮🇳 Indian Portfolio (NSE/BSE)</span>
         <span id="tabBadgeIndian" class="badge-count">0</span>
       </button>
-      <button class="sheet-tab" data-tab="active-global">
+      <button class="sheet-tab" data-tab="active-global" onclick="window.sheetApp && window.sheetApp.switchTab('active-global')">
         <span>🌐 Global Portfolio (US/Global)</span>
         <span id="tabBadgeGlobal" class="badge-count">0</span>
       </button>
-      <button class="sheet-tab" data-tab="watchlist">
+      <button class="sheet-tab" data-tab="watchlist" onclick="window.sheetApp && window.sheetApp.switchTab('watchlist')">
         <span>⭐ Watchlist</span>
         <span id="tabBadgeWatchlist" class="badge-count">0</span>
       </button>
-      <button class="sheet-tab" data-tab="trade-history">
+      <button class="sheet-tab" data-tab="trade-history" onclick="window.sheetApp && window.sheetApp.switchTab('trade-history')">
         <span>📜 Past Trade History</span>
         <span id="tabBadgeHistory" class="badge-count">0</span>
       </button>
@@ -427,6 +427,6 @@
   <div id="toastContainer" class="toast-container"></div>
 
   <!-- Application Logic -->
-  <script src="app.js"></script>
+  <script src="app.js?v=4.2"></script>
 </body>
 </html>

@@ -361,7 +361,12 @@ body {
   font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
+  user-select: none;
   transition: all 0.15s ease;
+}
+
+.sheet-tab * {
+  pointer-events: none;
 }
 
 .sheet-tab:hover {

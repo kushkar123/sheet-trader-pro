@@ -2,6 +2,7 @@
 SheetTrader Pro - yfinance Backend & Static File Server
 Supports NSE (.NS), BSE (.BO), and US/Global stocks with smart exchange resolution,
 currency detection (INR / USD), 30-day sparkline history, and Server-Side Multi-Device Sync.
+Enforces zero-cache headers so client browsers always receive the latest app updates.
 """
 
 import sys
@@ -29,6 +30,13 @@ HIST_CACHE_TTL = 180.0  # 3 minutes for sparklines
 class SheetTraderHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DIRECTORY, **kwargs)
+
+    def end_headers(self):
+        # Force browsers to always fetch fresh static assets and responses
+        self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+        self.send_header('Pragma', 'no-cache')
+        self.send_header('Expires', '0')
+        super().end_headers()
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
@@ -110,7 +118,6 @@ class SheetTraderHandler(SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        self.send_header('Cache-Control', 'no-cache')
         self.send_header('Content-Length', str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -277,7 +284,7 @@ def run():
     print(f"  SheetTrader Pro - Paper Trading Server")
     print(f"  Serving on: http://0.0.0.0:{PORT}")
     print(f"  Directory:  {DIRECTORY}")
-    print(f"  Multi-Device Sync & Live Quotes Active")
+    print(f"  Multi-Device Sync & Live Quotes Active (No-Cache Headers On)")
     print("=" * 60)
 
     httpd = HTTPServer(('0.0.0.0', PORT), SheetTraderHandler)
