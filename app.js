@@ -25,6 +25,7 @@ class SpreadsheetApp {
     this.quotes = {};
     this.updatedAt = new Date().toISOString();
     this.activeTab = 'active-indian';
+    this.historyFilter = 'all';
     this.refreshTimer = null;
     this.backendAvailable = false;
     this.pendingConfirmCallback = null;
@@ -300,6 +301,23 @@ class SpreadsheetApp {
         buyDate: '2024-03-01',
         sellDate: '2024-06-15',
         holdingDays: 106
+      },
+      {
+        id: 'th_2',
+        symbol: 'TSLA',
+        action: 'SELL_CLOSE',
+        quantity: 20,
+        currency: 'USD',
+        exchange: 'NASDAQ',
+        buyPrice: 195.00,
+        sellPrice: 228.50,
+        costBasis: 3900.00,
+        grossProceeds: 4570.00,
+        realizedPnl: 670.00,
+        roi: 17.18,
+        buyDate: '2024-04-10',
+        sellDate: '2024-07-05',
+        holdingDays: 86
       }
     ];
 
@@ -557,6 +575,14 @@ class SpreadsheetApp {
     });
   }
 
+  filterHistory(filterType) {
+    this.historyFilter = filterType;
+    document.querySelectorAll('.filter-pill').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-filter') === filterType);
+    });
+    this.renderHistoryTable();
+  }
+
   // ----------------------------------------------------
   // Market Data & yfinance Integration Engine
   // ----------------------------------------------------
@@ -810,23 +836,74 @@ class SpreadsheetApp {
     globSubEl.className = `kpi-subtext ${globalPnl >= 0 ? 'text-gain' : 'text-loss'}`;
     document.getElementById('kpiGlobalCountBadge').textContent = `${globalCount} stock${globalCount === 1 ? '' : 's'}`;
 
-    // Realized Closed Trades
-    let totalRealizedPnlInINR = 0;
-    let winCount = 0;
-    this.tradeHistory.forEach(th => {
-      const thCurr = th.currency || 'INR';
-      let pnlNorm = th.realizedPnl;
-      if (thCurr === 'USD') pnlNorm *= this.usdInrRate;
+    // Realized Closed Trades Breakdown (Distinct Indian vs US/Global)
+    const indianClosed = this.tradeHistory.filter(th => this.isIndianHolding(th));
+    const globalClosed = this.tradeHistory.filter(th => !this.isIndianHolding(th));
 
-      totalRealizedPnlInINR += pnlNorm;
-      if (th.realizedPnl > 0) winCount++;
+    let indianRealized = 0;
+    let indianWinCount = 0;
+    indianClosed.forEach(th => {
+      indianRealized += (th.realizedPnl || 0);
+      if (th.realizedPnl > 0) indianWinCount++;
     });
-    const winRate = this.tradeHistory.length > 0 ? ((winCount / this.tradeHistory.length) * 100).toFixed(0) : 0;
+    const indianWinRate = indianClosed.length > 0 ? ((indianWinCount / indianClosed.length) * 100).toFixed(0) : 0;
 
-    const realEl = document.getElementById('kpiRealizedPnl');
-    realEl.textContent = `${totalRealizedPnlInINR >= 0 ? '+' : ''}${this.formatCurrency(totalRealizedPnlInINR, 'INR')}`;
-    realEl.className = `kpi-value ${totalRealizedPnlInINR >= 0 ? 'text-gain' : 'text-loss'}`;
-    document.getElementById('kpiWinRate').textContent = `${this.tradeHistory.length} closed trades (${winRate}% win rate)`;
+    let globalRealized = 0;
+    let globalWinCount = 0;
+    globalClosed.forEach(th => {
+      globalRealized += (th.realizedPnl || 0);
+      if (th.realizedPnl > 0) globalWinCount++;
+    });
+    const globalWinRate = globalClosed.length > 0 ? ((globalWinCount / globalClosed.length) * 100).toFixed(0) : 0;
+
+    // Update Box 3 KPI Ribbon elements
+    const indRealPnlEl = document.getElementById('kpiRealizedIndianPnl');
+    if (indRealPnlEl) {
+      indRealPnlEl.textContent = `${indianRealized >= 0 ? '+' : ''}${this.formatCurrency(indianRealized, 'INR')}`;
+      indRealPnlEl.className = `kpi-value ${indianRealized >= 0 ? 'text-gain' : 'text-loss'}`;
+    }
+    const indRealSubEl = document.getElementById('kpiRealizedIndianSub');
+    if (indRealSubEl) {
+      indRealSubEl.textContent = `${indianWinRate}% win (${indianWinCount}W/${indianClosed.length - indianWinCount}L)`;
+      indRealSubEl.className = `kpi-subtext ${indianRealized >= 0 ? 'text-gain' : 'text-loss'}`;
+    }
+    const indRealCountEl = document.getElementById('kpiRealizedIndianCount');
+    if (indRealCountEl) indRealCountEl.textContent = `${indianClosed.length}`;
+
+    const globRealPnlEl = document.getElementById('kpiRealizedGlobalPnl');
+    if (globRealPnlEl) {
+      globRealPnlEl.textContent = `${globalRealized >= 0 ? '+' : ''}${this.formatCurrency(globalRealized, 'USD')}`;
+      globRealPnlEl.className = `kpi-value ${globalRealized >= 0 ? 'text-gain' : 'text-loss'}`;
+    }
+    const globRealSubEl = document.getElementById('kpiRealizedGlobalSub');
+    if (globRealSubEl) {
+      globRealSubEl.textContent = `${globalWinRate}% win (${globalWinCount}W/${globalClosed.length - globalWinCount}L)`;
+      globRealSubEl.className = `kpi-subtext ${globalRealized >= 0 ? 'text-gain' : 'text-loss'}`;
+    }
+    const globRealCountEl = document.getElementById('kpiRealizedGlobalCount');
+    if (globRealCountEl) globRealCountEl.textContent = `${globalClosed.length}`;
+
+    const totalTradesBadge = document.getElementById('kpiRealizedTotalTradesBadge');
+    if (totalTradesBadge) totalTradesBadge.textContent = `${this.tradeHistory.length} trade${this.tradeHistory.length === 1 ? '' : 's'}`;
+
+    // Update History Summary Bar elements
+    const hAll = document.getElementById('histFilterCountAll');
+    if (hAll) hAll.textContent = this.tradeHistory.length;
+    const hInd = document.getElementById('histFilterCountIndian');
+    if (hInd) hInd.textContent = indianClosed.length;
+    const hGlob = document.getElementById('histFilterCountGlobal');
+    if (hGlob) hGlob.textContent = globalClosed.length;
+
+    const hSumInd = document.getElementById('histSummaryIndianPnl');
+    if (hSumInd) {
+      hSumInd.textContent = `${indianRealized >= 0 ? '+' : ''}${this.formatCurrency(indianRealized, 'INR')}`;
+      hSumInd.className = indianRealized >= 0 ? 'text-gain' : 'text-loss';
+    }
+    const hSumGlob = document.getElementById('histSummaryGlobalPnl');
+    if (hSumGlob) {
+      hSumGlob.textContent = `${globalRealized >= 0 ? '+' : ''}${this.formatCurrency(globalRealized, 'USD')}`;
+      hSumGlob.className = globalRealized >= 0 ? 'text-gain' : 'text-loss';
+    }
 
     // Shared Purchasing Power (Unified Buying Power)
     const usdEquiv = (this.cashBalance / this.usdInrRate);
@@ -1038,16 +1115,24 @@ class SpreadsheetApp {
     const tbody = document.getElementById('historyTableBody');
     const emptyState = document.getElementById('historyEmptyState');
 
-    if (this.tradeHistory.length === 0) {
+    let filteredTrades = this.tradeHistory;
+    if (this.historyFilter === 'indian') {
+      filteredTrades = this.tradeHistory.filter(th => this.isIndianHolding(th));
+    } else if (this.historyFilter === 'global') {
+      filteredTrades = this.tradeHistory.filter(th => !this.isIndianHolding(th));
+    }
+
+    if (filteredTrades.length === 0) {
       tbody.innerHTML = '';
       emptyState.style.display = 'block';
       return;
     }
     emptyState.style.display = 'none';
 
-    tbody.innerHTML = this.tradeHistory.map(th => {
+    tbody.innerHTML = filteredTrades.map(th => {
       const isGain = th.realizedPnl >= 0;
-      const thCurr = th.currency || (this.isIndianHolding(th) ? 'INR' : 'USD');
+      const isIndian = this.isIndianHolding(th);
+      const thCurr = th.currency || (isIndian ? 'INR' : 'USD');
       const exchBadge = this.getExchangeBadgeHtml(th.symbol, th.exchange);
 
       return `

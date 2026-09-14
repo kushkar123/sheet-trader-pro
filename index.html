@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SheetTrader Pro | NSE, BSE & Global Paper Trading</title>
-  <link rel="stylesheet" href="styles.css?v=4.2">
+  <link rel="stylesheet" href="styles.css?v=4.3">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -75,11 +75,30 @@
       <div id="kpiGlobalSub" class="kpi-subtext text-gain">Invested: $0.00 (0.00% return)</div>
     </div>
 
-    <!-- Box 3: Realized Closed P&L -->
-    <div class="kpi-card">
-      <div class="kpi-label">Realized Closed P&amp;L</div>
-      <div id="kpiRealizedPnl" class="kpi-value">₹0.00</div>
-      <div id="kpiWinRate" class="kpi-subtext" style="color: var(--text-secondary);">0 closed trades</div>
+    <!-- Box 3: Realized Closed P&L with Indian vs US Distinction -->
+    <div class="kpi-card" style="padding: 10px 14px;">
+      <div class="kpi-label" style="margin-bottom: 2px;">
+        <span>Realized Closed P&amp;L</span>
+        <span id="kpiRealizedTotalTradesBadge" class="badge" style="background: var(--bg-tertiary); font-size: 0.65rem;">0 trades</span>
+      </div>
+      <div class="realized-split-grid">
+        <div class="realized-split-box indian">
+          <div style="font-size: 0.65rem; color: #fb923c; font-weight: 700; display: flex; justify-content: space-between;">
+            <span>🇮🇳 Indian</span>
+            <span id="kpiRealizedIndianCount" style="color: var(--text-muted); font-family: var(--font-mono);">0</span>
+          </div>
+          <div id="kpiRealizedIndianPnl" class="kpi-value" style="font-size: 0.96rem; margin: 1px 0;">₹0.00</div>
+          <div id="kpiRealizedIndianSub" class="kpi-subtext text-gain" style="font-size: 0.65rem;">0% win rate</div>
+        </div>
+        <div class="realized-split-box global">
+          <div style="font-size: 0.65rem; color: #60a5fa; font-weight: 700; display: flex; justify-content: space-between;">
+            <span>🌐 US/Global</span>
+            <span id="kpiRealizedGlobalCount" style="color: var(--text-muted); font-family: var(--font-mono);">0</span>
+          </div>
+          <div id="kpiRealizedGlobalPnl" class="kpi-value" style="font-size: 0.96rem; margin: 1px 0;">$0.00</div>
+          <div id="kpiRealizedGlobalSub" class="kpi-subtext text-gain" style="font-size: 0.65rem;">0% win rate</div>
+        </div>
+      </div>
     </div>
 
     <!-- Box 4: Shared Purchasing Power (50% Compact Size) -->
@@ -239,6 +258,24 @@
 
     <!-- Tab 4: Past Trade History Sheet -->
     <div id="tab-trade-history" class="sheet-panel">
+      <div class="history-summary-bar">
+        <div class="history-filter-pills">
+          <button class="filter-pill active" id="histBtnAll" onclick="window.sheetApp && window.sheetApp.filterHistory('all')">
+            All Closed Trades (<span id="histFilterCountAll">0</span>)
+          </button>
+          <button class="filter-pill" id="histBtnIndian" onclick="window.sheetApp && window.sheetApp.filterHistory('indian')">
+            🇮🇳 Indian (NSE/BSE) (<span id="histFilterCountIndian">0</span>)
+          </button>
+          <button class="filter-pill" id="histBtnGlobal" onclick="window.sheetApp && window.sheetApp.filterHistory('global')">
+            🌐 US / Global (<span id="histFilterCountGlobal">0</span>)
+          </button>
+        </div>
+        <div style="display: flex; gap: 14px; font-size: 0.78rem; font-family: var(--font-mono); align-items: center;">
+          <span style="color: var(--text-secondary);">🇮🇳 Indian Realized: <strong id="histSummaryIndianPnl" class="text-gain">₹0.00</strong></span>
+          <span style="color: var(--text-secondary);">🌐 US Realized: <strong id="histSummaryGlobalPnl" class="text-gain">$0.00</strong></span>
+        </div>
+      </div>
+
       <div class="table-responsive">
         <table class="spreadsheet-table" id="historyTable">
           <thead>
@@ -427,6 +464,6 @@
   <div id="toastContainer" class="toast-container"></div>
 
   <!-- Application Logic -->
-  <script src="app.js?v=4.2"></script>
+  <script src="app.js?v=4.3"></script>
 </body>
 </html>
